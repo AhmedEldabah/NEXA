@@ -1,11 +1,15 @@
 import { useState, useRef, useEffect } from "react";
 
 function useIsMobile(breakpoint = 768) {
-  const [isMobile, setIsMobile] = useState(() => window.innerWidth < breakpoint);
+  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < breakpoint);
   useEffect(() => {
-    const handler = () => setIsMobile(window.innerWidth < breakpoint);
+    let timer;
+    const handler = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => setIsMobile(window.innerWidth < breakpoint), 100);
+    };
     window.addEventListener("resize", handler);
-    return () => window.removeEventListener("resize", handler);
+    return () => { window.removeEventListener("resize", handler); clearTimeout(timer); };
   }, [breakpoint]);
   return isMobile;
 }
