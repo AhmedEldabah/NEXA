@@ -1,4 +1,14 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+
+function useIsMobile(breakpoint = 768) {
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < breakpoint);
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < breakpoint);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, [breakpoint]);
+  return isMobile;
+}
 
 const C = {
   bg: "#070710",
@@ -74,9 +84,12 @@ const Select = ({ label, value, onChange, options }) => (
   </div>
 );
 
-const FormRow = ({ children }) => (
-  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>{children}</div>
-);
+const FormRow = ({ children }) => {
+  const isMobile = useIsMobile();
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>{children}</div>
+  );
+};
 
 const Divider = ({ label }) => (
   <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "14px 0", fontSize: 11, color: C.textMuted }}>
@@ -115,6 +128,7 @@ const StatCard = ({ icon, value, label, trend, accent }) => (
 ══════════════════════════════════════════ */
 
 function Landing({ goTo }) {
+  const isMobile = useIsMobile();
   return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", position: "relative", overflow: "hidden" }}>
       {/* ambient glows */}
@@ -124,7 +138,7 @@ function Landing({ goTo }) {
       <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px)", backgroundSize: "80px 80px", pointerEvents: "none" }} />
 
       {/* NAV */}
-      <nav style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "24px 60px", position: "relative", zIndex: 2, borderBottom: `1px solid ${C.border}` }}>
+      <nav style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: isMobile ? "16px 20px" : "24px 60px", position: "relative", zIndex: 2, borderBottom: `1px solid ${C.border}` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
           <div style={{ width: 48, height: 48, borderRadius: 12, background: C.orange, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 900, color: "#fff", letterSpacing: 1 }}>NX</div>
           <div>
@@ -132,14 +146,14 @@ function Landing({ goTo }) {
             <div style={{ fontSize: 8, color: C.orange, letterSpacing: 3, textTransform: "uppercase", opacity: 0.7 }}>AI · Robotics · Coding</div>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <Btn variant="outline" onClick={() => goTo("login")}>Log In</Btn>
-          <Btn variant="primary" onClick={() => goTo("signup")}>Join NEXA</Btn>
+        <div style={{ display: "flex", gap: isMobile ? 8 : 10 }}>
+          <Btn variant="outline" style={isMobile ? { padding: "9px 14px", fontSize: 12 } : {}} onClick={() => goTo("login")}>Log In</Btn>
+          <Btn variant="primary" style={isMobile ? { padding: "9px 14px", fontSize: 12 } : {}} onClick={() => goTo("signup")}>Join NEXA</Btn>
         </div>
       </nav>
 
       {/* HERO */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "60px 40px 80px", position: "relative", zIndex: 2 }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: isMobile ? "40px 20px 60px" : "60px 40px 80px", position: "relative", zIndex: 2 }}>
         {/* editorial issue marker */}
         <div style={{ display: "inline-flex", alignItems: "center", gap: 12, marginBottom: 40 }}>
           <div style={{ height: 1, width: 44, background: C.orange, opacity: 0.5 }} />
@@ -159,19 +173,19 @@ function Landing({ goTo }) {
           <div style={{ flex: 1, height: 1, background: C.border }} />
         </div>
 
-        <p style={{ fontSize: 18, color: "rgba(255,255,255,.48)", fontWeight: 300, fontStyle: "italic", maxWidth: 480, lineHeight: 1.75, marginBottom: 48 }}>
+        <p style={{ fontSize: isMobile ? 16 : 18, color: "rgba(255,255,255,.48)", fontWeight: 300, fontStyle: "italic", maxWidth: 480, lineHeight: 1.75, marginBottom: 48 }}>
           We don't teach technology…<br />We build creators.
         </p>
 
-        <div style={{ display: "flex", gap: 14 }}>
-          <Btn variant="primary" style={{ padding: "14px 38px", fontSize: 14, borderRadius: 50 }} onClick={() => goTo("signup")}>Create Account</Btn>
-          <Btn variant="outline" style={{ padding: "14px 38px", fontSize: 14, borderRadius: 50 }} onClick={() => goTo("login")}>Sign In</Btn>
+        <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 14, width: isMobile ? "100%" : "auto", maxWidth: isMobile ? 320 : "none" }}>
+          <Btn variant="primary" style={{ padding: "14px 38px", fontSize: 14, borderRadius: 50, ...(isMobile ? { width: "100%" } : {}) }} onClick={() => goTo("signup")}>Create Account</Btn>
+          <Btn variant="outline" style={{ padding: "14px 38px", fontSize: 14, borderRadius: 50, ...(isMobile ? { width: "100%" } : {}) }} onClick={() => goTo("login")}>Sign In</Btn>
         </div>
 
         {/* stats */}
         <div style={{ display: "flex", gap: 0, marginTop: 72, flexWrap: "wrap", justifyContent: "center", borderTop: `1px solid ${C.border}`, paddingTop: 44, width: "100%", maxWidth: 600 }}>
           {[["3", "Year Program"], ["432", "Total Hours"], ["4", "Systems"], ["6–17", "Age Range"]].map(([n, l], i) => (
-            <div key={i} style={{ textAlign: "center", padding: "0 36px", borderRight: i < 3 ? `1px solid ${C.border}` : "none" }}>
+            <div key={i} style={{ textAlign: "center", padding: isMobile ? "0 16px" : "0 36px", borderRight: i < 3 ? `1px solid ${C.border}` : "none" }}>
               <div style={{ fontSize: 36, fontWeight: 900, color: C.orange, letterSpacing: 2 }}>{n}</div>
               <div style={{ fontSize: 9, color: "rgba(255,255,255,.28)", letterSpacing: 3, textTransform: "uppercase", marginTop: 5 }}>{l}</div>
             </div>
@@ -435,13 +449,23 @@ const DashBtn = ({ icon, title, sub, onClick }) => (
 
 /* ── SIDEBAR + SHELL ── */
 function Shell({ sidebarItems, user, onHome, pageTitle, topRight, children }) {
+  const isMobile = useIsMobile();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: C.bg }}>
+      {/* mobile overlay */}
+      {isMobile && sidebarOpen && (
+        <div onClick={() => setSidebarOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.6)", zIndex: 99 }} />
+      )}
       {/* sidebar */}
-      <div style={{ width: 252, minHeight: "100vh", background: C.bgCard, display: "flex", flexDirection: "column", padding: "22px 0", position: "fixed", top: 0, left: 0, zIndex: 100, borderRight: `1px solid ${C.border}` }}>
+      <div style={{ width: 252, minHeight: "100vh", background: C.bgCard, display: "flex", flexDirection: "column", padding: "22px 0", position: "fixed", top: 0, left: 0, zIndex: 100, borderRight: `1px solid ${C.border}`, transform: isMobile && !sidebarOpen ? "translateX(-100%)" : "translateX(0)", transition: "transform .25s ease" }}>
         <div style={{ padding: "0 20px 22px", borderBottom: `1px solid ${C.border}`, marginBottom: 14, display: "flex", alignItems: "center", gap: 11 }}>
           <div style={{ width: 36, height: 36, borderRadius: 9, background: C.orange, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 900, color: "#fff" }}>NX</div>
           <div><div style={{ fontSize: 16, fontWeight: 900, color: "#fff", letterSpacing: 2 }}>NEXA</div><div style={{ fontSize: 8, color: "rgba(255,255,255,.3)", letterSpacing: 2 }}>{user.subtitle}</div></div>
+          {isMobile && (
+            <button onClick={() => setSidebarOpen(false)} style={{ marginLeft: "auto", background: "none", border: "none", color: "rgba(255,255,255,.5)", fontSize: 20, cursor: "pointer", padding: 0 }}>✕</button>
+          )}
         </div>
         {sidebarItems}
         <div style={{ marginTop: "auto", padding: "18px 20px", borderTop: `1px solid ${C.border}` }}>
@@ -453,12 +477,17 @@ function Shell({ sidebarItems, user, onHome, pageTitle, topRight, children }) {
         </div>
       </div>
       {/* main */}
-      <div style={{ marginLeft: 252, flex: 1, display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+      <div style={{ marginLeft: isMobile ? 0 : 252, flex: 1, display: "flex", flexDirection: "column", minHeight: "100vh" }}>
         <div style={{ background: C.bgCard, padding: "14px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${C.border}`, position: "sticky", top: 0, zIndex: 50 }}>
-          <div style={{ fontSize: 17, fontWeight: 800, color: C.text }}>{pageTitle}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {isMobile && (
+              <button onClick={() => setSidebarOpen(true)} style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: 7, cursor: "pointer", color: C.text, fontSize: 18, padding: "4px 8px" }}>☰</button>
+            )}
+            <div style={{ fontSize: 17, fontWeight: 800, color: C.text }}>{pageTitle}</div>
+          </div>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>{topRight}</div>
         </div>
-        <div style={{ padding: "26px 28px", flex: 1 }}>{children}</div>
+        <div style={{ padding: isMobile ? "16px" : "26px 28px", flex: 1 }}>{children}</div>
       </div>
     </div>
   );
@@ -718,7 +747,7 @@ function StudentProfile({ name, initials, avatarBg, age, year, level, avg, atten
       <span style={{ fontSize: 12, color: C.textMuted }}>Children / {name}</span>
     </div>
     <div style={{ background: hdr, borderRadius: 14, padding: 28, display: "flex", alignItems: "center", gap: 22, marginBottom: 22 }}>
-      <Avatar initials={initials} bg="rgba(255,255,255,.15)" size={74} radius={18} style={{ border: "2.5px solid rgba(255,255,255,.18)" }} />
+      <Avatar initials={initials} bg={avatarBg || "rgba(255,255,255,.15)"} size={74} radius={18} style={{ border: "2.5px solid rgba(255,255,255,.18)" }} />
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: 22, fontWeight: 800, color: "#fff", marginBottom: 3 }}>{name}</div>
         <div style={{ fontSize: 12, color: "rgba(255,255,255,.5)", display: "flex", gap: 14 }}><span>🎂 Age {age}</span><span>📍 {year} · {level}</span></div>
