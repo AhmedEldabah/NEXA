@@ -30,10 +30,10 @@ const DARK = {
 const LIGHT = {
   bg: "#f0f4f8", bgCard: "#ffffff", bgElevated: "#e8eef5", bgSurface: "#dce6f0",
   navy: "#1a4a7a", navyMid: "#2563a8",
-  orange: "#e07b1a", orangeLight: "#f2932b",
-  sky: "#2563a8", skyLight: "#1a4a7a",
-  off: "#e8eef5", border: "rgba(26,74,138,0.15)", borderMid: "rgba(26,74,138,0.25)",
-  text: "#0d1f33", textMid: "#3a5870", textMuted: "#7899aa",
+  orange: "#c96a0a", orangeLight: "#e07b1a",
+  sky: "#1a4a7a", skyLight: "#0d3060",
+  off: "#e8eef5", border: "rgba(26,74,138,0.18)", borderMid: "rgba(26,74,138,0.30)",
+  text: "#071220", textMid: "#1e3a52", textMuted: "#3a5870",
 };
 
 /* We use a module-level mutable ref so all components can read C without prop drilling */
@@ -45,42 +45,36 @@ let C = { ...DARK };
 function ThemeSwitch() {
   const { isDark, toggle } = useTheme();
   return (
-    <button
+    /* Single track — no outer wrapper button */
+    <div
       onClick={toggle}
       title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
       style={{
-        display: "flex", alignItems: "center", gap: 6,
-        background: isDark ? "rgba(146,185,214,0.10)" : "rgba(26,74,138,0.10)",
-        border: `1.5px solid ${isDark ? "rgba(146,185,214,0.25)" : "rgba(26,74,138,0.25)"}`,
-        borderRadius: 50, padding: "6px 12px", cursor: "pointer",
-        transition: "all .3s", fontFamily: "'Montserrat',sans-serif",
+        width: 58, height: 30, borderRadius: 15, position: "relative",
+        background: isDark
+          ? "linear-gradient(135deg,#0d2540,#23558a)"
+          : "linear-gradient(135deg,#87ceeb,#ffd700)",
+        border: `2px solid ${isDark ? "rgba(146,185,214,0.35)" : "rgba(255,180,0,0.6)"}`,
+        cursor: "pointer", flexShrink: 0,
+        transition: "background .3s, border-color .3s",
+        boxShadow: isDark ? "0 0 10px rgba(35,85,138,0.4)" : "0 0 10px rgba(255,200,0,0.35)",
       }}
     >
-      {/* Track */}
+      {/* Knob */}
       <div style={{
-        width: 38, height: 20, borderRadius: 10, position: "relative",
-        background: isDark
-          ? "linear-gradient(135deg,#1a2a4a,#23558a)"
-          : "linear-gradient(135deg,#87ceeb,#ffd700)",
-        transition: "background .3s",
-        border: `1px solid ${isDark ? "rgba(146,185,214,0.3)" : "rgba(255,200,0,0.5)"}`,
-        flexShrink: 0,
+        position: "absolute", top: 3,
+        left: isDark ? 3 : 27,
+        width: 20, height: 20, borderRadius: "50%",
+        background: isDark ? "#b8d4e8" : "#fff",
+        transition: "left .25s cubic-bezier(.4,0,.2,1), background .3s",
+        boxShadow: isDark ? "0 0 8px rgba(146,185,214,0.7)" : "0 2px 8px rgba(0,0,0,0.18)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 12, lineHeight: 1,
+        userSelect: "none",
       }}>
-        {/* Knob */}
-        <div style={{
-          position: "absolute", top: 2,
-          left: isDark ? 2 : 18,
-          width: 14, height: 14, borderRadius: "50%",
-          background: isDark ? "#92b9d6" : "#fff",
-          transition: "left .25s cubic-bezier(.4,0,.2,1), background .3s",
-          boxShadow: isDark ? "0 0 6px rgba(146,185,214,0.6)" : "0 0 8px rgba(255,200,0,0.8)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 8,
-        }}>
-          {isDark ? "🌙" : "☀️"}
-        </div>
+        {isDark ? "🌙" : "☀️"}
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -290,7 +284,13 @@ const Btn = ({ children, onClick, variant = "primary", block = false, disabled =
 };
 
 const Tag = ({ children, color = "navy" }) => {
-  const map = { navy: { bg: "rgba(26,84,144,.3)", color: "#6ab0e0" }, orange: { bg: "rgba(242,147,43,.18)", color: "#fbb55a" }, sky: { bg: "rgba(58,127,168,.22)", color: "#7ec8e3" }, green: { bg: "rgba(34,197,94,.14)", color: "#4ade80" } };
+  const { isDark } = useTheme();
+  const map = {
+    navy:  { bg: isDark ? "rgba(26,84,144,.3)"   : "rgba(26,84,144,.15)",   color: isDark ? "#6ab0e0" : "#0d3a6e" },
+    orange:{ bg: isDark ? "rgba(242,147,43,.18)"  : "rgba(201,106,10,.15)",  color: isDark ? "#fbb55a" : "#8b4200" },
+    sky:   { bg: isDark ? "rgba(58,127,168,.22)"  : "rgba(26,74,138,.15)",   color: isDark ? "#7ec8e3" : "#0d3a6e" },
+    green: { bg: isDark ? "rgba(34,197,94,.14)"   : "rgba(21,128,61,.12)",   color: isDark ? "#4ade80" : "#14532d" },
+  };
   const s = map[color] || map.navy;
   return <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: s.bg, color: s.color }}>{children}</span>;
 };
@@ -313,7 +313,7 @@ const FSelect = ({ label, value, onChange, options }) => (
 );
 
 const FormRow = ({ children }) => { const isMobile = useIsMobile(600); return <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>{children}</div>; };
-const Divider = ({ label }) => (<div style={{ display: "flex", alignItems: "center", gap: 10, margin: "14px 0", fontSize: 11, color: C.textMuted }}><div style={{ flex: 1, height: 1, background: C.border }} />{label}<div style={{ flex: 1, height: 1, background: C.border }} /></div>);
+const Divider = ({ label }) => (<div style={{ display: "flex", alignItems: "center", gap: 10, margin: "14px 0", fontSize: 11, color: C.textMid, fontWeight: 600 }}><div style={{ flex: 1, height: 1, background: C.border }} />{label}<div style={{ flex: 1, height: 1, background: C.border }} /></div>);
 const Card = ({ children, style = {} }) => <div style={{ background: C.bgCard, borderRadius: 14, boxShadow: "0 4px 32px rgba(0,0,0,.12)", border: `1px solid ${C.border}`, overflow: "hidden", ...style }}>{children}</div>;
 const CardHead = ({ title, right }) => (<div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}><div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 800, color: C.text }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: C.orange, flexShrink: 0, display: "inline-block" }} />{title}</div>{right}</div>);
 const CardBody = ({ children, style = {} }) => <div style={{ padding: "18px 20px", ...style }}>{children}</div>;
@@ -323,7 +323,7 @@ const StatCard = ({ icon, value, label, trend, accent }) => (
     <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: accent, borderRadius: "14px 14px 0 0" }} />
     <div style={{ width: 42, height: 42, borderRadius: 11, background: accent + "28", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, marginBottom: 14 }}>{icon}</div>
     <div style={{ fontSize: 30, fontWeight: 800, lineHeight: 1, marginBottom: 3, color: C.text }}>{value}</div>
-    <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>{label}</div>
+    <div style={{ fontSize: 11, color: C.textMid, fontWeight: 700 }}>{label}</div>
     {trend && <span style={{ position: "absolute", top: 18, right: 18, fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 20, background: "rgba(34,197,94,.12)", color: "#4ade80" }}>{trend}</span>}
   </div>
 );
@@ -332,33 +332,45 @@ const StatCard = ({ icon, value, label, trend, accent }) => (
    NEXA LOGO COMPONENT
 ══════════════════════════════════════════ */
 function NexaLogo({ size = 48, showText = true, isMobile = false }) {
+  const { isDark } = useTheme();
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
       {/* PNG logo image */}
       <div style={{
         width: size, height: size,
         borderRadius: "50%",
         overflow: "hidden",
         flexShrink: 0,
-        boxShadow: "0 2px 12px rgba(242,147,43,0.3)",
-        border: "2px solid rgba(242,147,43,0.25)",
+        boxShadow: isDark
+          ? "0 0 0 2.5px rgba(242,147,43,0.55), 0 0 20px rgba(242,147,43,0.28)"
+          : "0 0 0 2.5px rgba(224,123,26,0.65), 0 2px 14px rgba(0,0,0,0.22)",
+        border: "2.5px solid rgba(242,147,43,0.5)",
       }}>
         <img
           src="/NEXA_LOGO.png"
           alt="NEXA Logo"
-          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
           onError={(e) => {
-            // Fallback to text logo if image fails
             e.target.style.display = "none";
             e.target.parentElement.style.background = `linear-gradient(135deg, #f2932b, #e07b1a)`;
-            e.target.parentElement.innerHTML = `<span style="color:#fff;font-weight:900;font-size:${size * 0.3}px;font-family:'Montserrat',sans-serif">NX</span>`;
+            e.target.parentElement.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:${Math.round(size*0.32)}px;font-family:'Montserrat',sans-serif">NX</div>`;
           }}
         />
       </div>
       {showText && (
         <div>
-          <div className="nexa-logo-text" style={{ fontSize: isMobile ? 18 : 21, fontWeight: 700, color: C.text, letterSpacing: 4 }}>NEXA</div>
-          <div style={{ fontSize: 8, color: C.orange, letterSpacing: 3, textTransform: "uppercase", opacity: 0.8, fontFamily: "'Montserrat',sans-serif" }}>AI · Robotics · Coding</div>
+          <div className="nexa-logo-text" style={{
+            fontSize: isMobile ? 20 : 24,
+            fontWeight: 700,
+            color: isDark ? "#ffffff" : C.text,
+            letterSpacing: 5,
+            lineHeight: 1.1,
+          }}>NEXA</div>
+          <div style={{
+            fontSize: 9, color: C.orange, letterSpacing: 3,
+            textTransform: "uppercase", fontFamily: "'Montserrat',sans-serif",
+            fontWeight: 600, marginTop: 2, opacity: 1,
+          }}>AI · Robotics · Coding</div>
         </div>
       )}
     </div>
@@ -397,7 +409,7 @@ function Landing({ goTo }) {
 
       {/* ── NAV ── */}
       <nav style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: isMobile ? "16px 20px" : "24px 60px", position: "relative", zIndex: 10, borderBottom: `1px solid ${C.border}`, backdropFilter: "blur(8px)", background: isDark ? "rgba(2,12,24,0.6)" : "rgba(240,244,248,0.85)", transition: "background .3s" }}>
-        <NexaLogo size={isMobile ? 38 : 48} isMobile={isMobile} />
+        <NexaLogo size={isMobile ? 46 : 58} isMobile={isMobile} />
         <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 12 }}>
           {/* Dark/Light toggle */}
           <ThemeSwitch />
@@ -820,7 +832,7 @@ function NavItem({ icon, label, badge, active, onClick, accent }) {
 function SectionLabel({ children }) {
   const collapsed = useIsMobile(1024) && !useIsMobile(768);
   if (collapsed) return <div style={{ height: 1, background: C.border, margin: "8px 10px" }} />;
-  return <div style={{ fontSize: 9, color: C.textMuted, letterSpacing: 3, textTransform: "uppercase", padding: "12px 18px 6px", fontWeight: 700 }}>{children}</div>;
+  return <div style={{ fontSize: 9, color: C.textMid, letterSpacing: 3, textTransform: "uppercase", padding: "12px 18px 6px", fontWeight: 800 }}>{children}</div>;
 }
 
 function MsgResponsiveLayout({ msgTo, children }) {
