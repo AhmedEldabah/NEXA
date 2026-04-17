@@ -9,69 +9,7 @@ const SUPA_URL = "https://niheflatontvfdmwcfis.supabase.co";
 const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5paGVmbGF0b250dmZkbXdjZmlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzNzI4OTcsImV4cCI6MjA5MTk0ODg5N30.puXa4D7EuVqx1LPcnv9W3H9R4MDktWzQCE5sd2bz6K4";
 const supabase = createClient(SUPA_URL, SUPA_KEY);
 
-/* ── DB bootstrap: run once to create tables if they don't exist ── */
-async function bootstrapSchema() {
-  const sql = `
-    CREATE TABLE IF NOT EXISTS public.profiles (
-      id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-      email text, full_name text, avatar_url text,
-      role text CHECK (role IN ('student','parent','instructor')),
-      phone text, age int, current_level int DEFAULT 1,
-      total_xp int DEFAULT 0, year int DEFAULT 1,
-      parent_email text, student_email text, subject text,
-      skills jsonb DEFAULT '{"logic":0,"coding":0,"hardware":0,"ai":0}'::jsonb,
-      enrollment_date date DEFAULT CURRENT_DATE,
-      created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now()
-    );
-    CREATE TABLE IF NOT EXISTS public.grades (
-      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-      student_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
-      instructor_id uuid REFERENCES public.profiles(id),
-      subject text NOT NULL, assessment_name text NOT NULL,
-      score numeric(5,2), notes text, graded_at timestamptz DEFAULT now()
-    );
-    CREATE TABLE IF NOT EXISTS public.sessions (
-      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-      instructor_id uuid REFERENCES public.profiles(id),
-      subject text NOT NULL, level int, cohort text, room text,
-      session_date date NOT NULL, start_time time NOT NULL, end_time time,
-      notes text, created_at timestamptz DEFAULT now()
-    );
-    CREATE TABLE IF NOT EXISTS public.attendance (
-      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-      session_id uuid REFERENCES public.sessions(id) ON DELETE CASCADE,
-      student_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
-      status text DEFAULT 'present' CHECK (status IN ('present','absent','late')),
-      marked_at timestamptz DEFAULT now(),
-      UNIQUE(session_id, student_id)
-    );
-    CREATE TABLE IF NOT EXISTS public.messages (
-      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-      from_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
-      to_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
-      body text NOT NULL, read boolean DEFAULT false,
-      created_at timestamptz DEFAULT now()
-    );
-    CREATE TABLE IF NOT EXISTS public.achievements (
-      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-      student_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
-      badge text NOT NULL, label text NOT NULL,
-      earned_at timestamptz DEFAULT now()
-    );
-    CREATE TABLE IF NOT EXISTS public.projects (
-      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-      student_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
-      title text NOT NULL, description text, subject text, level int,
-      image_url text, score numeric(5,2), featured boolean DEFAULT false,
-      created_at timestamptz DEFAULT now()
-    );
-    CREATE TABLE IF NOT EXISTS public.notifications (
-      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-      user_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
-      title text NOT NULL, body text, type text DEFAULT 'info',
-      read boolean DEFAULT false, created_at timestamptz DEFAULT now()
-    );
-  `;
+
   // Use RPC if available, otherwise silently skip (tables may already exist)
   try { await supabase.rpc("exec_sql", { query: sql }); } catch {}
 }
