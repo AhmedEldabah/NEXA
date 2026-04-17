@@ -52,6 +52,61 @@ function useAuth() {
   return { session, profile, loading, fetchProfile };
 }
 
+/* ── Presence: broadcast online status & track last seen ── */
+function usePresence(userId) {
+  useEffect(() => {
+    if (!userId) return;
+
+    // Mark online
+    async function heartbeat() {
+      await supabase.from("presence").upsert({ user_id: userId, online: true, last_seen: new Date().toISOString() });
+    }
+    heartbeat();
+    const interval = setInterval(heartbeat, 30000); // ping every 30s
+
+    // Mark offline on page hide/close
+    async function goOffline() {
+      await supabase.from("presence").upsert({ user_id: userId, online: false, last_seen: new Date().toISOString() });
+    }
+    window.addEventListener("beforeunload", goOffline);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") goOffline();
+      else heartbeat();
+    });
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("beforeunload", goOffline);
+      goOffline();
+    };
+  }, [userId]);
+}
+
+/* ── Format last seen time ── */
+function formatLastSeen(ts) {
+  if (!ts) return "Never";
+  const diff = Math.floor((Date.now() - new Date(ts)) / 1000);
+  if (diff < 60) return "Just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+  return new Date(ts).toLocaleDateString();
+}
+
+/* ── Single presence indicator dot ── */
+function PresenceDot({ online, size = 9 }) {
+  return (
+    <span style={{
+      display: "inline-block",
+      width: size, height: size,
+      borderRadius: "50%",
+      background: online ? "#4ade80" : C.textMuted,
+      flexShrink: 0,
+      boxShadow: online ? "0 0 6px #4ade80" : "none",
+    }} />
+  );
+}
+
 function initials(name) {
   if (!name) return "??";
   const parts = name.trim().split(" ");
@@ -210,7 +265,7 @@ const FSelect = ({ label, value, onChange, options }) => (
   </div>
 );
 
-const FormRow = ({ children }) => { const isMobile = useIsMobile(); return <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>{children}</div>; };
+const FormRow = ({ children }) => { const isMobile = useIsMobile(600); return <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>{children}</div>; };
 const Divider = ({ label }) => (<div style={{ display: "flex", alignItems: "center", gap: 10, margin: "14px 0", fontSize: 11, color: C.textMuted }}><div style={{ flex: 1, height: 1, background: C.border }} />{label}<div style={{ flex: 1, height: 1, background: C.border }} /></div>);
 const Card = ({ children, style = {} }) => <div style={{ background: C.bgCard, borderRadius: 14, boxShadow: "0 4px 32px rgba(0,0,0,.5)", border: `1px solid ${C.border}`, overflow: "hidden", ...style }}>{children}</div>;
 const CardHead = ({ title, right }) => (<div style={{ padding: "16px 20px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}><div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 800, color: C.text }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: C.orange, flexShrink: 0, display: "inline-block" }} />{title}</div>{right}</div>);
@@ -324,11 +379,11 @@ function RolePicker({ mode, onSelect }) {
   return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
       <MatrixRain opacity={0.10} />
-      <div style={{ background: C.bgCard, borderRadius: 20, padding: "40px 36px", maxWidth: 460, width: "90%", position: "relative", zIndex: 2, border: `1px solid ${C.border}`, boxShadow: "0 20px 60px rgba(0,0,0,.6)" }}>
+      <div style={{ background: C.bgCard, borderRadius: 20, padding: "clamp(22px,5vw,40px) clamp(16px,5vw,36px)", maxWidth: 460, width: "94%", position: "relative", zIndex: 2, border: `1px solid ${C.border}`, boxShadow: "0 20px 60px rgba(0,0,0,.6)" }}>
         <div style={{ textAlign: "center", marginBottom: 4 }}><div className="nexa-logo-text" style={{ fontSize: 22, fontWeight: 700, color: C.orange, letterSpacing: 4 }}>NEXA</div></div>
         <div style={{ fontSize: 20, fontWeight: 800, color: C.text, marginBottom: 6, textAlign: "center" }}>{mode === "login" ? "How are you signing in?" : "Who are you?"}</div>
         <div style={{ fontSize: 13, color: C.textMuted, textAlign: "center", marginBottom: 28 }}>{mode === "login" ? "Select your account type to continue" : "Choose your role to create an account"}</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 20 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(80px,1fr))", gap: 10, marginBottom: 20 }}>
           {roles.map(r => (
             <div key={r.id} onClick={() => setRole(r.id)} style={{ border: `2px solid ${role === r.id ? C.orange : C.border}`, background: role === r.id ? "rgba(242,147,43,.08)" : C.bgElevated, borderRadius: 14, padding: "20px 12px", cursor: "pointer", textAlign: "center", transition: "all .2s", boxShadow: role === r.id ? `0 0 16px rgba(242,147,43,0.2)` : "none" }}>
               <div style={{ fontSize: 30, marginBottom: 8 }}>{r.icon}</div>
@@ -374,7 +429,7 @@ function LoginPage({ role, goTo, onAuthSuccess }) {
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }}>
       <MatrixRain opacity={0.10} />
       <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "45%", background: "linear-gradient(180deg, rgba(0,43,81,.35) 0%, transparent 100%)", pointerEvents: "none", zIndex: 1 }} />
-      <div style={{ background: C.bgCard, borderRadius: 22, padding: "40px 44px", width: "100%", maxWidth: 420, boxShadow: "0 20px 60px rgba(0,0,0,.7)", border: `1px solid ${C.border}`, position: "relative", zIndex: 2 }}>
+      <div style={{ background: C.bgCard, borderRadius: 22, padding: "clamp(20px,5vw,40px) clamp(18px,6vw,44px)", width: "100%", maxWidth: 420, boxShadow: "0 20px 60px rgba(0,0,0,.7)", border: `1px solid ${C.border}`, position: "relative", zIndex: 2 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 11, justifyContent: "center", marginBottom: 6 }}>
           <div style={{ width: 44, height: 44, borderRadius: 10, background: `linear-gradient(135deg,${C.orange},#e07b1a)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#fff", fontFamily: "'Conthrax','Montserrat',sans-serif", boxShadow: `0 0 14px rgba(242,147,43,0.35)` }}>NX</div>
           <div><div className="nexa-logo-text" style={{ fontSize: 22, fontWeight: 700, color: C.text, letterSpacing: 4 }}>NEXA</div><div style={{ fontSize: 8, color: C.textMuted, letterSpacing: 2 }}>AI · ROBOTICS · CODING</div></div>
@@ -434,29 +489,28 @@ function SignupPage({ role, goTo, onAuthSuccess }) {
     if (role === "instructor" && !f("subject")) { setErr("Please select your subject."); return; }
     setLd(true);
 
-    // 1. Create auth user
-    const { data: authData, error: authErr } = await supabase.auth.signUp({
+    // 1. Create the auth user
+    const { error: signUpErr } = await supabase.auth.signUp({
       email: f("email"),
       password: f("password"),
       options: { data: { full_name: f("full_name") } }
     });
-    if (authErr) { setErr(authErr.message); setLd(false); return; }
-
-    // 2. Wait for session to be fully active so RLS allows the insert
-    let session = authData.session;
-    if (!session) {
-      // Poll up to 5 seconds for the session to be established
-      for (let i = 0; i < 10; i++) {
-        await new Promise(r => setTimeout(r, 500));
-        const { data: { session: s } } = await supabase.auth.getSession();
-        if (s) { session = s; break; }
-      }
+    if (signUpErr && !signUpErr.message.includes("already registered")) {
+      setErr(signUpErr.message); setLd(false); return;
     }
-    if (!session) { setErr("Session could not be established. Please try logging in."); setLd(false); return; }
+
+    // 2. Sign in immediately with the same credentials to get a live session
+    const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
+      email: f("email"),
+      password: f("password"),
+    });
+    if (signInErr) { setErr(signInErr.message); setLd(false); return; }
+
+    const uid = signInData.user.id;
 
     // 3. Build profile payload
     const payload = {
-      id: authData.user.id,
+      id: uid,
       email: f("email"),
       full_name: f("full_name"),
       role,
@@ -477,20 +531,21 @@ function SignupPage({ role, goTo, onAuthSuccess }) {
       payload.subject = f("subject");
     }
 
-    // 4. Upsert profile — session is now active so RLS (auth.uid() = id) will pass
+    // 4. Upsert profile — now session is definitely active
     const { error: profErr } = await supabase.from("profiles").upsert(payload);
     if (profErr) { setErr(profErr.message); setLd(false); return; }
 
     // 5. Link parent → student if email provided
     if (role === "parent" && f("student_email")) {
-      const { data: students } = await supabase.from("profiles").select("id").eq("email", f("student_email").toLowerCase().trim());
+      const { data: students } = await supabase.from("profiles")
+        .select("id").eq("email", f("student_email").toLowerCase().trim());
       if (students?.length > 0) {
         await supabase.from("profiles").update({ parent_email: f("email") }).eq("id", students[0].id);
       }
     }
 
     setOk(role === "instructor" ? "Application submitted! You'll be reviewed within 24 hours." : "Account created! Welcome to NEXA 🚀");
-    setTimeout(() => onAuthSuccess(payload), 1200);
+    setTimeout(() => onAuthSuccess(payload), 1000);
     setLd(false);
   }
 
@@ -499,7 +554,7 @@ function SignupPage({ role, goTo, onAuthSuccess }) {
   return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden", padding: "40px 20px" }}>
       <MatrixRain opacity={0.10} />
-      <div style={{ background: C.bgCard, borderRadius: 22, padding: "36px 40px", width: "100%", maxWidth: 480, boxShadow: "0 20px 60px rgba(0,0,0,.7)", border: `1px solid ${C.border}`, position: "relative", zIndex: 2, maxHeight: "90vh", overflowY: "auto" }}>
+      <div style={{ background: C.bgCard, borderRadius: 22, padding: "clamp(18px,4vw,36px) clamp(16px,5vw,40px)", width: "100%", maxWidth: 480, boxShadow: "0 20px 60px rgba(0,0,0,.7)", border: `1px solid ${C.border}`, position: "relative", zIndex: 2, maxHeight: "92vh", overflowY: "auto" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 11, justifyContent: "center", marginBottom: 6 }}>
           <div style={{ width: 44, height: 44, borderRadius: 10, background: `linear-gradient(135deg,${C.orange},#e07b1a)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#fff" }}>NX</div>
           <div><div className="nexa-logo-text" style={{ fontSize: 22, fontWeight: 700, color: C.text, letterSpacing: 4 }}>NEXA</div><div style={{ fontSize: 8, color: C.textMuted, letterSpacing: 2 }}>AI · ROBOTICS · CODING</div></div>
@@ -611,7 +666,7 @@ function HomeCard({ profile, onGoToDash, onLogout }) {
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }}>
       <MatrixRain opacity={0.08} />
       <div style={{ position: "absolute", width: 500, height: 500, borderRadius: "50%", background: "radial-gradient(circle, rgba(242,147,43,.08) 0%, transparent 70%)", top: -150, right: -100, pointerEvents: "none", zIndex: 1 }} />
-      <div style={{ background: C.bgCard, borderRadius: 24, padding: "44px 48px", maxWidth: 480, width: "90%", position: "relative", zIndex: 2, textAlign: "center", border: `1px solid ${C.border}`, boxShadow: "0 20px 60px rgba(0,0,0,.6)" }}>
+      <div style={{ background: C.bgCard, borderRadius: 24, padding: "clamp(24px,5vw,44px) clamp(20px,6vw,48px)", maxWidth: 480, width: "94%", position: "relative", zIndex: 2, textAlign: "center", border: `1px solid ${C.border}`, boxShadow: "0 20px 60px rgba(0,0,0,.6)" }}>
         <Avatar ini={ini} bg={accent} size={80} radius={20} src={profile.avatar_url} style={{ margin: "0 auto 16px", border: `3px solid ${accent}40` }} />
         <div style={{ marginBottom: 6 }}><Tag color="navy">{roleLabels[role]}</Tag></div>
         <div style={{ fontSize: 24, fontWeight: 800, color: C.text, marginBottom: 4 }}>{name}</div>
@@ -642,53 +697,152 @@ function HomeCard({ profile, onGoToDash, onLogout }) {
 }
 
 /* ══════════════════════════════════════════
-   DASHBOARD SHELL
+   DASHBOARD SHELL — fully responsive
 ══════════════════════════════════════════ */
-function Shell({ sidebarItems, user: profile, onHome, pageTitle, topRight, children, accent }) {
+function Shell({ sidebarItems, user: profile, onHome, pageTitle, topRight, children, accent, navItemsFlat }) {
+  const isMobile = useIsMobile(768);
+  const isTablet = useIsMobile(1024);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const name = profile?.full_name || profile?.email?.split("@")[0] || "User";
   const ini = initials(name).toUpperCase();
-  return (
-    <div style={{ display: "flex", minHeight: "100vh", background: C.bg, fontFamily: "'Montserrat',sans-serif" }}>
-      <div style={{ width: 252, minHeight: "100vh", background: C.bgCard, display: "flex", flexDirection: "column", padding: "22px 0", position: "fixed", top: 0, left: 0, zIndex: 100, borderRight: `1px solid ${C.border}` }}>
-        <div style={{ padding: "0 20px 22px", borderBottom: `1px solid ${C.border}`, marginBottom: 14, display: "flex", alignItems: "center", gap: 11 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 9, background: `linear-gradient(135deg,${C.orange},#e07b1a)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 900, color: "#fff" }}>NX</div>
-          <div><div className="nexa-logo-text" style={{ fontSize: 16, fontWeight: 700, color: accent || C.orange, letterSpacing: 3 }}>NEXA</div><div style={{ fontSize: 8, color: C.textMuted, letterSpacing: 2 }}>PORTAL</div></div>
-        </div>
-        {sidebarItems}
-        <div style={{ marginTop: "auto", padding: "18px 20px", borderTop: `1px solid ${C.border}` }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-            <Avatar ini={ini} bg={accent || C.navyMid} size={34} src={profile?.avatar_url} />
+  const collapsed = isTablet && !isMobile;
+  const sidebarW = collapsed ? 64 : 252;
+
+  useEffect(() => {
+    if (!isMobile) { setSidebarOpen(false); return; }
+    const handler = (e) => { if (sidebarOpen && !e.target.closest(".shell-sidebar")) setSidebarOpen(false); };
+    document.addEventListener("touchstart", handler);
+    return () => document.removeEventListener("touchstart", handler);
+  }, [isMobile, sidebarOpen]);
+
+  const SidebarInner = () => (
+    <>
+      <div style={{ padding: collapsed ? "0 0 18px" : "0 16px 18px", borderBottom: `1px solid ${C.border}`, marginBottom: 12, display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : "flex-start", gap: 10 }}>
+        <div style={{ width: 34, height: 34, borderRadius: 8, background: `linear-gradient(135deg,${C.orange},#e07b1a)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 900, color: "#fff", flexShrink: 0 }}>NX</div>
+        {!collapsed && <div><div className="nexa-logo-text" style={{ fontSize: 14, fontWeight: 700, color: accent || C.orange, letterSpacing: 3 }}>NEXA</div><div style={{ fontSize: 7, color: C.textMuted, letterSpacing: 2 }}>PORTAL</div></div>}
+      </div>
+      <div style={{ flex: 1, overflowY: "auto" }}>{sidebarItems}</div>
+      <div style={{ padding: collapsed ? "14px 0" : "14px 16px", borderTop: `1px solid ${C.border}` }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : "flex-start", gap: 8 }}>
+          <Avatar ini={ini} bg={accent || C.navyMid} size={30} src={profile?.avatar_url} style={{ flexShrink: 0 }} />
+          {!collapsed && <>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</div>
-              <div style={{ fontSize: 10, color: C.textMuted }}>{profile?.role}</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</div>
+              <div style={{ fontSize: 9, color: C.textMuted, textTransform: "capitalize" }}>{profile?.role}</div>
             </div>
-            <button onClick={onHome} title="Home" style={{ width: 28, height: 28, borderRadius: 7, background: "rgba(255,255,255,.05)", border: `1px solid ${C.border}`, cursor: "pointer", color: C.textMuted, fontSize: 14 }}>⌂</button>
-          </div>
+            <button onClick={onHome} title="Home" style={{ width: 26, height: 26, borderRadius: 6, background: "rgba(255,255,255,.05)", border: `1px solid ${C.border}`, cursor: "pointer", color: C.textMuted, fontSize: 13, flexShrink: 0 }}>⌂</button>
+          </>}
         </div>
       </div>
-      <div style={{ marginLeft: 252, flex: 1, display: "flex", flexDirection: "column", minHeight: "100vh" }}>
-        <div style={{ background: C.bgCard, padding: "14px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${C.border}`, position: "sticky", top: 0, zIndex: 50 }}>
-          <div style={{ fontSize: 17, fontWeight: 800, color: C.text }}>{pageTitle}</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>{topRight}</div>
+    </>
+  );
+
+  return (
+    <div style={{ display: "flex", minHeight: "100vh", background: C.bg, fontFamily: "'Montserrat',sans-serif" }}>
+
+      {/* ── Desktop/Tablet sidebar ── */}
+      {!isMobile && (
+        <div className="shell-sidebar" style={{ width: sidebarW, minHeight: "100vh", background: C.bgCard, display: "flex", flexDirection: "column", padding: collapsed ? "20px 0" : "20px 0", position: "fixed", top: 0, left: 0, zIndex: 100, borderRight: `1px solid ${C.border}`, transition: "width .2s", overflow: "hidden" }}>
+          <SidebarInner />
         </div>
-        <div style={{ padding: "26px 28px", flex: 1, overflowY: "auto" }}>{children}</div>
+      )}
+
+      {/* ── Mobile drawer ── */}
+      {isMobile && sidebarOpen && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 300 }}>
+          <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.65)" }} onClick={() => setSidebarOpen(false)} />
+          <div className="shell-sidebar" style={{ position: "absolute", top: 0, left: 0, width: 260, height: "100%", background: C.bgCard, display: "flex", flexDirection: "column", padding: "20px 0", borderRight: `1px solid ${C.border}`, animation: "slideInLeft .22s ease", zIndex: 1 }}>
+            <button onClick={() => setSidebarOpen(false)} style={{ position: "absolute", top: 12, right: 12, width: 28, height: 28, borderRadius: "50%", background: "rgba(255,255,255,.08)", border: "none", cursor: "pointer", color: C.textMuted, fontSize: 16 }}>✕</button>
+            <SidebarInner />
+          </div>
+        </div>
+      )}
+
+      {/* ── Main content ── */}
+      <div style={{ marginLeft: isMobile ? 0 : sidebarW, flex: 1, display: "flex", flexDirection: "column", minHeight: "100vh", minWidth: 0, transition: "margin-left .2s" }}>
+
+        {/* Topbar */}
+        <div style={{ background: C.bgCard, padding: isMobile ? "11px 14px" : "12px 22px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${C.border}`, position: "sticky", top: 0, zIndex: 50, gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+            {isMobile && (
+              <button onClick={() => setSidebarOpen(true)} style={{ width: 36, height: 36, borderRadius: 9, background: C.bgElevated, border: `1px solid ${C.border}`, cursor: "pointer", color: C.text, fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>☰</button>
+            )}
+            <div style={{ fontSize: isMobile ? 14 : 16, fontWeight: 800, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{pageTitle}</div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 12, flexShrink: 0 }}>
+            {topRight}
+            {isMobile && <button onClick={onHome} style={{ width: 32, height: 32, borderRadius: 8, background: C.bgElevated, border: `1px solid ${C.border}`, cursor: "pointer", color: C.textMuted, fontSize: 15 }}>⌂</button>}
+          </div>
+        </div>
+
+        {/* Page */}
+        <div style={{ padding: isMobile ? "14px 12px 80px" : collapsed ? "20px 18px" : "22px 26px", flex: 1, overflowY: "auto", overflowX: "hidden" }}>
+          {children}
+        </div>
+
+        {/* ── Mobile bottom nav ── */}
+        {isMobile && navItemsFlat && (
+          <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, height: 60, background: C.bgCard, borderTop: `1px solid ${C.border}`, display: "flex", zIndex: 100 }}>
+            {navItemsFlat.slice(0, 5).map((n, i) => (
+              <button key={i} onClick={n.onClick} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, background: "transparent", border: "none", cursor: "pointer", padding: "6px 2px", position: "relative", WebkitTapHighlightColor: "transparent" }}>
+                {n.active && <div style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", width: 28, height: 2, background: accent || C.orange, borderRadius: "0 0 2px 2px" }} />}
+                <span style={{ fontSize: 19 }}>{n.icon}</span>
+                <span style={{ fontSize: 8, fontWeight: 700, color: n.active ? (accent || C.orange) : C.textMuted, letterSpacing: 0.3 }}>{n.label}</span>
+                {n.badge > 0 && <div style={{ position: "absolute", top: 5, left: "calc(50% + 6px)", minWidth: 14, height: 14, borderRadius: 7, background: C.orange, color: "#fff", fontSize: 8, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 3px" }}>{n.badge}</div>}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
 function NavItem({ icon, label, badge, active, onClick, accent }) {
+  const collapsed = useIsMobile(1024) && !useIsMobile(768);
   return (
-    <div onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 11, padding: "11px 20px", cursor: "pointer", borderLeft: `3px solid ${active ? (accent || C.orange) : "transparent"}`, background: active ? `${accent || C.orange}14` : "transparent", color: active ? C.text : C.textMuted, fontSize: 12, fontWeight: 600, transition: "all .15s" }}>
-      <span style={{ width: 17, textAlign: "center", fontSize: 15 }}>{icon}</span>
-      {label}
-      {badge > 0 && <span style={{ marginLeft: "auto", background: accent || C.orange, color: "#fff", fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 20 }}>{badge}</span>}
+    <div onClick={onClick} title={collapsed ? label : ""} style={{ display: "flex", alignItems: "center", gap: collapsed ? 0 : 11, padding: collapsed ? "11px 0" : "10px 18px", justifyContent: collapsed ? "center" : "flex-start", cursor: "pointer", borderLeft: collapsed ? "none" : `3px solid ${active ? (accent || C.orange) : "transparent"}`, background: active ? `${accent || C.orange}14` : "transparent", color: active ? C.text : C.textMuted, fontSize: 12, fontWeight: 600, transition: "all .15s", WebkitTapHighlightColor: "transparent" }}>
+      <span style={{ fontSize: collapsed ? 19 : 15, textAlign: "center", width: collapsed ? "100%" : 17 }}>{icon}</span>
+      {!collapsed && <span style={{ flex: 1 }}>{label}</span>}
+      {!collapsed && badge > 0 && <span style={{ background: accent || C.orange, color: "#fff", fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 20 }}>{badge}</span>}
     </div>
   );
 }
 
 function SectionLabel({ children }) {
-  return <div style={{ fontSize: 9, color: C.textMuted, letterSpacing: 3, textTransform: "uppercase", padding: "14px 20px 7px", fontWeight: 700 }}>{children}</div>;
+  const collapsed = useIsMobile(1024) && !useIsMobile(768);
+  if (collapsed) return <div style={{ height: 1, background: C.border, margin: "8px 10px" }} />;
+  return <div style={{ fontSize: 9, color: C.textMuted, letterSpacing: 3, textTransform: "uppercase", padding: "12px 18px 6px", fontWeight: 700 }}>{children}</div>;
+}
+
+/* ── Responsive message layout ── */
+function MsgResponsiveLayout({ msgTo, children }) {
+  const isMobile = useIsMobile(768);
+  if (isMobile) {
+    // On mobile: show contact list OR thread, not both
+    return msgTo
+      ? <div>{children[1]}</div>
+      : <div>{children[0]}</div>;
+  }
+  return <div style={{ display: "grid", gridTemplateColumns: "240px 1fr", gap: 16 }}>{children}</div>;
+}
+
+/* ── Responsive table — cards on mobile ── */
+function ResponsiveTable({ headers, rows, mobileCard }) {
+  const isMobile = useIsMobile(600);
+  if (isMobile) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {rows.map((r, i) => mobileCard(r, i))}
+      </div>
+    );
+  }
+  return (
+    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <thead><tr>{headers.map(h => <th key={h} style={{ textAlign: "left", fontSize: 10, fontWeight: 800, color: C.textMuted, letterSpacing: 1, textTransform: "uppercase", padding: "10px 12px", background: C.bgElevated }}>{h}</th>)}</tr></thead>
+      <tbody>{rows}</tbody>
+    </table>
+  );
 }
 
 /* ── Messages thread ── */
@@ -696,20 +850,38 @@ function MsgThread({ fromId, toId, myProfile }) {
   const [msgs, setMsgs] = useState([]);
   const [input, setInput] = useState("");
   const [toProfile, setToProfile] = useState(null);
+  const [presence, setPresence] = useState(null); // { online, last_seen }
   const threadRef = useRef(null);
 
   useEffect(() => {
     if (!toId) return;
+
     // Load recipient profile
     supabase.from("profiles").select("full_name,avatar_url,role").eq("id", toId).single()
       .then(({ data }) => setToProfile(data));
+
+    // Load their presence
+    supabase.from("presence").select("online,last_seen").eq("user_id", toId).single()
+      .then(({ data }) => setPresence(data));
+
     // Load messages
     loadMsgs();
-    // Subscribe to realtime
-    const ch = supabase.channel("msgs-" + fromId + toId)
+
+    // Realtime: new messages
+    const msgCh = supabase.channel("msgs-" + fromId + "-" + toId)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, () => loadMsgs())
       .subscribe();
-    return () => supabase.removeChannel(ch);
+
+    // Realtime: presence changes
+    const presCh = supabase.channel("pres-" + toId)
+      .on("postgres_changes", { event: "*", schema: "public", table: "presence", filter: `user_id=eq.${toId}` },
+        ({ new: row }) => setPresence(row))
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(msgCh);
+      supabase.removeChannel(presCh);
+    };
   }, [fromId, toId]);
 
   async function loadMsgs() {
@@ -731,32 +903,78 @@ function MsgThread({ fromId, toId, myProfile }) {
   const myIni = initials(myName).toUpperCase();
   const otherName = toProfile?.full_name || "User";
   const otherIni = initials(otherName).toUpperCase();
+  const isOnline = presence?.online === true;
+  const lastSeen = presence?.last_seen;
 
   return (
     <div>
-      {toProfile && <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, padding: "10px 14px", background: C.bgElevated, borderRadius: 10 }}>
-        <Avatar ini={otherIni} bg={C.navyMid} size={34} src={toProfile.avatar_url} />
-        <div><div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{otherName}</div><div style={{ fontSize: 10, color: C.textMuted }}>{toProfile.role}</div></div>
-        <span style={{ marginLeft: "auto", width: 8, height: 8, borderRadius: "50%", background: "#4ade80", display: "inline-block" }} />
-      </div>}
-      <div ref={threadRef} style={{ display: "flex", flexDirection: "column", gap: 14, maxHeight: 360, overflowY: "auto", padding: 4, marginBottom: 14 }}>
-        {msgs.length === 0 && <div style={{ textAlign: "center", color: C.textMuted, fontSize: 12, padding: "30px 0" }}>No messages yet. Start the conversation!</div>}
-        {msgs.map(m => {
+      {/* ── Contact header with presence ── */}
+      {toProfile && (
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, padding: "12px 16px", background: C.bgElevated, borderRadius: 12, border: `1px solid ${C.border}` }}>
+          {/* Avatar with online dot */}
+          <div style={{ position: "relative", flexShrink: 0 }}>
+            <Avatar ini={otherIni} bg={C.navyMid} size={40} src={toProfile.avatar_url} />
+            <span style={{
+              position: "absolute", bottom: 0, right: 0,
+              width: 11, height: 11, borderRadius: "50%",
+              background: isOnline ? "#4ade80" : C.textMuted,
+              border: `2px solid ${C.bgElevated}`,
+              boxShadow: isOnline ? "0 0 6px rgba(74,222,128,.6)" : "none",
+            }} />
+          </div>
+          {/* Name + status */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{otherName}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 2 }}>
+              <span style={{ fontSize: 10, color: isOnline ? "#4ade80" : C.textMuted, fontWeight: 600 }}>
+                {isOnline ? "● Online" : lastSeen ? `Last seen ${formatLastSeen(lastSeen)}` : "Offline"}
+              </span>
+            </div>
+          </div>
+          {/* Role badge */}
+          <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 9px", borderRadius: 20, background: "rgba(146,185,214,.15)", color: C.sky, flexShrink: 0, textTransform: "capitalize" }}>{toProfile.role}</span>
+        </div>
+      )}
+
+      {/* ── Messages ── */}
+      <div ref={threadRef} style={{ display: "flex", flexDirection: "column", gap: 14, maxHeight: 400, overflowY: "auto", padding: "4px 2px", marginBottom: 14 }}>
+        {msgs.length === 0 && (
+          <div style={{ textAlign: "center", color: C.textMuted, fontSize: 12, padding: "40px 0" }}>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>💬</div>
+            No messages yet. Say hello!
+          </div>
+        )}
+        {msgs.map((m, idx) => {
           const isMe = m.from_id === fromId;
+          const showTime = idx === 0 || (new Date(m.created_at) - new Date(msgs[idx-1]?.created_at)) > 5 * 60 * 1000;
           return (
-            <div key={m.id} style={{ display: "flex", gap: 9, maxWidth: "80%", alignSelf: isMe ? "flex-end" : "flex-start", flexDirection: isMe ? "row-reverse" : "row" }}>
-              <Avatar ini={isMe ? myIni : otherIni} bg={isMe ? C.orange : C.navyMid} size={30} src={isMe ? myProfile?.avatar_url : toProfile?.avatar_url} />
-              <div>
-                <div style={{ padding: "9px 13px", borderRadius: 13, fontSize: 12, lineHeight: 1.5, background: isMe ? C.navyMid : C.bgElevated, color: C.text, border: `1px solid ${C.border}`, borderTopLeftRadius: isMe ? 13 : 3, borderTopRightRadius: isMe ? 3 : 13 }}>{m.body}</div>
-                <div style={{ fontSize: 9, color: C.textMuted, marginTop: 3, textAlign: isMe ? "right" : "left" }}>{new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
+            <div key={m.id}>
+              {showTime && (
+                <div style={{ textAlign: "center", fontSize: 9, color: C.textMuted, margin: "4px 0 10px", letterSpacing: 0.5 }}>
+                  {new Date(m.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 8, maxWidth: "82%", alignSelf: isMe ? "flex-end" : "flex-start", flexDirection: isMe ? "row-reverse" : "row", marginLeft: isMe ? "auto" : 0 }}>
+                <Avatar ini={isMe ? myIni : otherIni} bg={isMe ? C.orange : C.navyMid} size={28} src={isMe ? myProfile?.avatar_url : toProfile?.avatar_url} style={{ flexShrink: 0, alignSelf: "flex-end" }} />
+                <div style={{ maxWidth: "100%" }}>
+                  <div style={{ padding: "9px 13px", borderRadius: 14, fontSize: 13, lineHeight: 1.55, background: isMe ? C.navyMid : C.bgSurface, color: C.text, border: `1px solid ${isMe ? "rgba(35,85,138,.6)" : C.border}`, borderBottomLeftRadius: !isMe ? 3 : 14, borderBottomRightRadius: isMe ? 3 : 14, wordBreak: "break-word" }}>{m.body}</div>
+                  <div style={{ fontSize: 9, color: C.textMuted, marginTop: 3, textAlign: isMe ? "right" : "left" }}>
+                    {new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    {isMe && <span style={{ marginLeft: 4, color: isOnline ? "#4ade80" : C.textMuted }}>✓</span>}
+                  </div>
+                </div>
               </div>
             </div>
           );
         })}
       </div>
-      <div style={{ display: "flex", gap: 10, paddingTop: 14, borderTop: `1px solid ${C.border}` }}>
-        <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && send()} placeholder="Type a message…" style={{ flex: 1, padding: "10px 14px", border: `1.5px solid ${C.border}`, borderRadius: 50, fontFamily: "'Montserrat',sans-serif", fontSize: 12, color: C.text, background: C.bgSurface, outline: "none" }} />
-        <button onClick={send} style={{ width: 40, height: 40, borderRadius: "50%", background: C.navyMid, border: "none", cursor: "pointer", color: "#fff", fontSize: 16 }}>➤</button>
+
+      {/* ── Input ── */}
+      <div style={{ display: "flex", gap: 10, paddingTop: 14, borderTop: `1px solid ${C.border}`, alignItems: "center" }}>
+        <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && send()}
+          placeholder={isOnline ? `Message ${otherName}…` : `Message ${otherName} (offline)…`}
+          style={{ flex: 1, padding: "11px 16px", border: `1.5px solid ${C.border}`, borderRadius: 50, fontFamily: "'Montserrat',sans-serif", fontSize: 12, color: C.text, background: C.bgSurface, outline: "none" }} />
+        <button onClick={send} style={{ width: 42, height: 42, borderRadius: "50%", background: input.trim() ? C.navyMid : C.bgElevated, border: "none", cursor: "pointer", color: input.trim() ? "#fff" : C.textMuted, fontSize: 17, transition: "all .2s", flexShrink: 0 }}>➤</button>
       </div>
     </div>
   );
@@ -806,13 +1024,27 @@ function StudentDash({ profile, onHome }) {
   const [contactList, setContactList] = useState([]);
   const [msgTo, setMsgTo] = useState(null);
 
+  const [presenceMap, setPresenceMap] = useState({});
+  usePresence(profile.id);
+
   useEffect(() => {
     supabase.from("grades").select("*").eq("student_id", profile.id).order("graded_at", { ascending: false }).then(({ data }) => setGrades(data || []));
     supabase.from("achievements").select("*").eq("student_id", profile.id).then(({ data }) => setAchievements(data || []));
     supabase.from("sessions").select("*").order("session_date").limit(10).then(({ data }) => setSessions(data || []));
     supabase.from("profiles").select("id,full_name,avatar_url,current_level,total_xp,role").eq("role", "student").order("total_xp", { ascending: false }).limit(10).then(({ data }) => setLeaderboard(data || []));
-    // Get instructors to message
     supabase.from("profiles").select("id,full_name,avatar_url,subject,role").eq("role", "instructor").then(({ data }) => setContactList(data || []));
+    // Load all presence
+    supabase.from("presence").select("user_id,online,last_seen").then(({ data }) => {
+      const map = {};
+      (data || []).forEach(p => { map[p.user_id] = p; });
+      setPresenceMap(map);
+    });
+    // Realtime presence
+    const ch = supabase.channel("presence-all-std")
+      .on("postgres_changes", { event: "*", schema: "public", table: "presence" },
+        ({ new: row }) => setPresenceMap(m => ({ ...m, [row.user_id]: row })))
+      .subscribe();
+    return () => supabase.removeChannel(ch);
   }, [profile.id]);
 
   const avgGrade = grades.length ? Math.round(grades.reduce((a, g) => a + (g.score || 0), 0) / grades.length) : 0;
@@ -831,8 +1063,9 @@ function StudentDash({ profile, onHome }) {
 
   const titles = { overview: "My Dashboard", grades: "My Grades", schedule: "Schedule", leaderboard: "Hall of Fame", messages: "Messages", notifications: "Notifications" };
 
+  const flatNav = navItems.filter(n => !n[0]?.section).map(n => ({ ...n[0], active: page === n[0].id, onClick: () => setPage(n[0].id) }));
   return (
-    <Shell accent={C.orange} sidebarItems={
+    <Shell accent={C.orange} navItemsFlat={flatNav} sidebarItems={
       navItems.map((n, i) => n[0]?.section
         ? <SectionLabel key={i}>{n[0].section}</SectionLabel>
         : <NavItem key={i} icon={n[0].icon} label={n[0].label} active={page === n[0].id} onClick={() => setPage(n[0].id)} accent={C.orange} />)
@@ -916,14 +1149,22 @@ function StudentDash({ profile, onHome }) {
       {/* MESSAGES */}
       {page === "messages" && <div>
         <div style={{ marginBottom: 24 }}><h1 style={{ fontSize: 24, fontWeight: 800, color: C.text }}>Messages</h1></div>
-        <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 18 }}>
+        <MsgResponsiveLayout msgTo={msgTo}>
           <Card>
             <CardHead title="Contacts" />
             <CardBody style={{ padding: "10px 0" }}>
               {contactList.map(c => (
-                <div key={c.id} onClick={() => setMsgTo(c.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", cursor: "pointer", background: msgTo === c.id ? C.bgSurface : "transparent", transition: "all .15s" }}>
-                  <Avatar ini={initials(c.full_name || "").toUpperCase()} bg={C.navyMid} size={34} src={c.avatar_url} />
-                  <div><div style={{ fontSize: 12, fontWeight: 700, color: C.text }}>{c.full_name}</div><div style={{ fontSize: 10, color: C.textMuted }}>{c.subject || c.role}</div></div>
+                <div key={c.id} onClick={() => setMsgTo(c.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", cursor: "pointer", background: msgTo === c.id ? C.bgSurface : "transparent", transition: "all .15s", minHeight: 56, borderBottom: `1px solid ${C.border}` }}>
+                  <div style={{ position: "relative", flexShrink: 0 }}>
+                    <Avatar ini={initials(c.full_name || "").toUpperCase()} bg={C.navyMid} size={36} src={c.avatar_url} />
+                    <span style={{ position: "absolute", bottom: 0, right: 0, width: 10, height: 10, borderRadius: "50%", background: presenceMap[c.id]?.online ? "#4ade80" : C.textMuted, border: `2px solid ${C.bgCard}`, boxShadow: presenceMap[c.id]?.online ? "0 0 5px rgba(74,222,128,.5)" : "none" }} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.full_name}</div>
+                    <div style={{ fontSize: 10, color: presenceMap[c.id]?.online ? "#4ade80" : C.textMuted, marginTop: 2 }}>
+                      {presenceMap[c.id]?.online ? "● Online" : presenceMap[c.id]?.last_seen ? `${formatLastSeen(presenceMap[c.id].last_seen)}` : c.subject || c.role}
+                    </div>
+                  </div>
                 </div>
               ))}
               {contactList.length === 0 && <div style={{ textAlign: "center", color: C.textMuted, fontSize: 12, padding: "20px 14px" }}>No instructors yet.</div>}
@@ -959,7 +1200,20 @@ function ParentDash({ profile, onHome }) {
     loadData();
   }, [profile]);
 
+  const [presenceMap, setPresenceMap] = useState({});
+  usePresence(profile.id);
+
   async function loadData() {
+    // Load all presence
+    supabase.from("presence").select("user_id,online,last_seen").then(({ data }) => {
+      const map = {};
+      (data || []).forEach(p => { map[p.user_id] = p; });
+      setPresenceMap(map);
+    });
+    const ch = supabase.channel("presence-all-par")
+      .on("postgres_changes", { event: "*", schema: "public", table: "presence" },
+        ({ new: row }) => setPresenceMap(m => ({ ...m, [row.user_id]: row })))
+      .subscribe();
     // Find linked child
     if (profile.student_email) {
       const { data: kids } = await supabase.from("profiles").select("*").eq("email", profile.student_email);
@@ -993,8 +1247,9 @@ function ParentDash({ profile, onHome }) {
 
   const titles = { overview: "Parent Overview", child: "Child Profile", grades: "Grades & Progress", schedule: "Schedule", achievements: "Achievements", messages: "Messages", notifications: "Notifications" };
 
+  const flatNav = navItems.filter(n => !n[0]?.section).map(n => ({ ...n[0], active: page === n[0].id, onClick: () => setPage(n[0].id) }));
   return (
-    <Shell accent={C.navyMid} sidebarItems={
+    <Shell accent={C.navyMid} navItemsFlat={flatNav} sidebarItems={
       navItems.map((n, i) => n[0]?.section
         ? <SectionLabel key={i}>{n[0].section}</SectionLabel>
         : <NavItem key={i} icon={n[0].icon} label={n[0].label} badge={n[0].badge} active={page === n[0].id} onClick={() => setPage(n[0].id)} accent={C.navyMid} />)
@@ -1074,19 +1329,29 @@ function ParentDash({ profile, onHome }) {
 
       {page === "messages" && <div>
         <div style={{ marginBottom: 24 }}><h1 style={{ fontSize: 24, fontWeight: 800, color: C.text }}>Messages</h1></div>
-        <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 18 }}>
+        <MsgResponsiveLayout msgTo={msgTo}>
           <Card>
             <CardHead title="Instructors" />
             <CardBody style={{ padding: "10px 0" }}>
-              {instructors.map(c => (<div key={c.id} onClick={() => setMsgTo(c.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", cursor: "pointer", background: msgTo === c.id ? C.bgSurface : "transparent" }}>
-                <Avatar ini={initials(c.full_name || "").toUpperCase()} bg={C.navyMid} size={34} src={c.avatar_url} />
-                <div><div style={{ fontSize: 12, fontWeight: 700, color: C.text }}>{c.full_name}</div><div style={{ fontSize: 10, color: C.textMuted }}>{c.subject}</div></div>
-              </div>))}
+              {instructors.map(c => (
+                <div key={c.id} onClick={() => setMsgTo(c.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", cursor: "pointer", background: msgTo === c.id ? C.bgSurface : "transparent", borderBottom: `1px solid ${C.border}` }}>
+                  <div style={{ position: "relative", flexShrink: 0 }}>
+                    <Avatar ini={initials(c.full_name || "").toUpperCase()} bg={C.navyMid} size={36} src={c.avatar_url} />
+                    <span style={{ position: "absolute", bottom: 0, right: 0, width: 10, height: 10, borderRadius: "50%", background: presenceMap[c.id]?.online ? "#4ade80" : C.textMuted, border: `2px solid ${C.bgCard}` }} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.full_name}</div>
+                    <div style={{ fontSize: 10, color: presenceMap[c.id]?.online ? "#4ade80" : C.textMuted, marginTop: 2 }}>
+                      {presenceMap[c.id]?.online ? "● Online" : presenceMap[c.id]?.last_seen ? formatLastSeen(presenceMap[c.id].last_seen) : c.subject}
+                    </div>
+                  </div>
+                </div>
+              ))}
               {instructors.length === 0 && <div style={{ textAlign: "center", color: C.textMuted, fontSize: 12, padding: "20px 14px" }}>No instructors yet.</div>}
             </CardBody>
           </Card>
           <Card><CardBody>{msgTo ? <MsgThread fromId={profile.id} toId={msgTo} myProfile={profile} /> : <div style={{ textAlign: "center", color: C.textMuted, fontSize: 13, padding: "60px 0" }}>Select an instructor to message</div>}</CardBody></Card>
-        </div>
+        </MsgResponsiveLayout>
       </div>}
 
       {page === "notifications" && <NotificationsPanel profile={profile} />}
@@ -1112,12 +1377,25 @@ function InstructorDash({ profile, onHome }) {
   const [sForm, setSForm] = useState({ subject: profile.subject || "Robotics", level: "5", cohort: "", room: "", date: "", time: "" });
   const [sSaved, setSSaved] = useState(false);
 
+  const [presenceMap, setPresenceMap] = useState({});
+  usePresence(profile.id);
+
   useEffect(() => {
     supabase.from("profiles").select("*").eq("role", "student").order("full_name").then(({ data }) => setStudents(data || []));
     supabase.from("sessions").select("*").eq("instructor_id", profile.id).order("session_date").then(({ data }) => setSessions(data || []));
     supabase.from("grades").select("*,profiles!grades_student_id_fkey(full_name)").eq("instructor_id", profile.id).order("graded_at", { ascending: false }).limit(20).then(({ data }) => setGrades(data || []));
-    // Contacts = parents + students
     supabase.from("profiles").select("id,full_name,avatar_url,role,subject").in("role", ["parent", "student"]).then(({ data }) => setContacts(data || []));
+    // Presence
+    supabase.from("presence").select("user_id,online,last_seen").then(({ data }) => {
+      const map = {};
+      (data || []).forEach(p => { map[p.user_id] = p; });
+      setPresenceMap(map);
+    });
+    const ch = supabase.channel("presence-all-inst")
+      .on("postgres_changes", { event: "*", schema: "public", table: "presence" },
+        ({ new: row }) => setPresenceMap(m => ({ ...m, [row.user_id]: row })))
+      .subscribe();
+    return () => supabase.removeChannel(ch);
   }, [profile.id]);
 
   async function saveGrade() {
@@ -1161,8 +1439,9 @@ function InstructorDash({ profile, onHome }) {
   ];
   const titles = { overview: "Instructor Overview", students: "My Students", sessions: "Sessions", grades: "Grade Entry", messages: "Messages", notifications: "Notifications" };
 
+  const flatNav = navItems.filter(n => !n[0]?.section).map(n => ({ ...n[0], active: page === n[0].id, onClick: () => setPage(n[0].id) }));
   return (
-    <Shell accent={C.sky} sidebarItems={
+    <Shell accent={C.sky} navItemsFlat={flatNav} sidebarItems={
       navItems.map((n, i) => n[0]?.section
         ? <SectionLabel key={i}>{n[0].section}</SectionLabel>
         : <NavItem key={i} icon={n[0].icon} label={n[0].label} active={page === n[0].id} onClick={() => setPage(n[0].id)} accent={C.sky} />)
@@ -1176,7 +1455,7 @@ function InstructorDash({ profile, onHome }) {
           <StatCard icon="📊" value={grades.length} label="Grades Given" accent="#22c55e" />
           <StatCard icon="📋" value={sessions.length} label="Total Sessions" accent={C.sky} />
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 16 }}>
           <Card>
             <CardHead title="Today's Sessions" />
             <CardBody>
@@ -1217,7 +1496,7 @@ function InstructorDash({ profile, onHome }) {
 
       {page === "sessions" && <div>
         <div style={{ marginBottom: 24 }}><h1 style={{ fontSize: 24, fontWeight: 800, color: C.text }}>Sessions</h1></div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, marginBottom: 22 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 16, marginBottom: 22 }}>
           <Card>
             <CardHead title="Add Session" />
             <CardBody>
@@ -1252,7 +1531,7 @@ function InstructorDash({ profile, onHome }) {
 
       {page === "grades" && <div>
         <div style={{ marginBottom: 24 }}><h1 style={{ fontSize: 24, fontWeight: 800, color: C.text }}>Grade Entry</h1></div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 16 }}>
           <Card>
             <CardHead title="Enter Grade" />
             <CardBody>
@@ -1290,19 +1569,29 @@ function InstructorDash({ profile, onHome }) {
 
       {page === "messages" && <div>
         <div style={{ marginBottom: 24 }}><h1 style={{ fontSize: 24, fontWeight: 800, color: C.text }}>Messages</h1></div>
-        <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 18 }}>
+        <MsgResponsiveLayout msgTo={msgTo}>
           <Card>
             <CardHead title="Contacts" />
             <CardBody style={{ padding: "10px 0" }}>
-              {contacts.map(c => (<div key={c.id} onClick={() => setMsgTo(c.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", cursor: "pointer", background: msgTo === c.id ? C.bgSurface : "transparent" }}>
-                <Avatar ini={initials(c.full_name || "").toUpperCase()} bg={c.role === "parent" ? C.navyMid : C.orange} size={34} src={c.avatar_url} />
-                <div><div style={{ fontSize: 12, fontWeight: 700, color: C.text }}>{c.full_name}</div><div style={{ fontSize: 10, color: C.textMuted }}>{c.role}</div></div>
-              </div>))}
+              {contacts.map(c => (
+                <div key={c.id} onClick={() => setMsgTo(c.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", cursor: "pointer", background: msgTo === c.id ? C.bgSurface : "transparent", borderBottom: `1px solid ${C.border}` }}>
+                  <div style={{ position: "relative", flexShrink: 0 }}>
+                    <Avatar ini={initials(c.full_name || "").toUpperCase()} bg={c.role === "parent" ? C.navyMid : C.orange} size={36} src={c.avatar_url} />
+                    <span style={{ position: "absolute", bottom: 0, right: 0, width: 10, height: 10, borderRadius: "50%", background: presenceMap[c.id]?.online ? "#4ade80" : C.textMuted, border: `2px solid ${C.bgCard}` }} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.full_name}</div>
+                    <div style={{ fontSize: 10, color: presenceMap[c.id]?.online ? "#4ade80" : C.textMuted, marginTop: 2 }}>
+                      {presenceMap[c.id]?.online ? "● Online" : presenceMap[c.id]?.last_seen ? formatLastSeen(presenceMap[c.id].last_seen) : c.role}
+                    </div>
+                  </div>
+                </div>
+              ))}
               {contacts.length === 0 && <div style={{ textAlign: "center", color: C.textMuted, fontSize: 12, padding: "20px 14px" }}>No contacts yet.</div>}
             </CardBody>
           </Card>
           <Card><CardBody>{msgTo ? <MsgThread fromId={profile.id} toId={msgTo} myProfile={profile} /> : <div style={{ textAlign: "center", color: C.textMuted, fontSize: 13, padding: "60px 0" }}>Select a contact to start a conversation</div>}</CardBody></Card>
-        </div>
+        </MsgResponsiveLayout>
       </div>}
 
       {page === "notifications" && <NotificationsPanel profile={profile} />}
@@ -1380,9 +1669,18 @@ export default function App() {
         @keyframes hexPulse { 0%,100%{opacity:.6;transform:scale(1)} 50%{opacity:1;transform:scale(1.12)} }
         @keyframes circuitTrace { 0%{stroke-dashoffset:400} 100%{stroke-dashoffset:0} }
         @keyframes scanLine { 0%{top:-2px;opacity:0} 5%{opacity:1} 95%{opacity:.6} 100%{top:100%;opacity:0} }
+        @keyframes slideInLeft { from{transform:translateX(-100%)} to{transform:translateX(0)} }
         .nexa-logo-text { font-family: 'Conthrax','Montserrat',sans-serif !important; }
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        ::-webkit-scrollbar { width: 5px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: rgba(146,185,214,.15); border-radius: 10px; }
+        ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: rgba(146,185,214,.15); border-radius: 10px; }
+        input, select, textarea, button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+        @media (max-width: 767px) {
+          table { font-size: 11px; }
+          table td, table th { padding: 8px 8px !important; }
+        }
+        @media (max-width: 480px) {
+          table td:nth-child(4), table th:nth-child(4) { display: none; }
+        }
       `}</style>
 
       {screen === "landing" && <Landing goTo={goTo} />}
