@@ -192,26 +192,33 @@ function MatrixRain({ opacity = 0.18 }) {
     resize(); window.addEventListener("resize", resize);
     const chars = "アイウエカキクタナハマ01010011<>{}()=+-*/0x9FA3B2C1def function class import return yield async await AI ML NLP CNN RNN 0x1A 0xFF π∑∫∂∇Ω∈";
 
-    // dark mode: fade with dark bg; light mode: fade with light bg
-    const fadeFill = isDark ? "rgba(2,12,24,0.055)" : "rgba(240,244,248,0.065)";
-
     function draw() {
-      ctx.fillStyle = fadeFill; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // fade trail — matches each bg
+      ctx.fillStyle = isDark ? "rgba(2,12,24,0.055)" : "rgba(240,244,248,0.10)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
       for (let i = 0; i < drops.length; i++) {
-        const idx = Math.floor(Math.random() * chars.length); const char = chars[idx];
-        const x = i * fontSize; const y = drops[i] * fontSize;
-        const isLead = Math.random() > 0.94; const isKeyword = idx > 40 && idx < 80;
+        const idx = Math.floor(Math.random() * chars.length);
+        const char = chars[idx];
+        const x = i * fontSize;
+        const y = drops[i] * fontSize;
+        const isLead    = Math.random() > 0.94;
+        const isKeyword = idx > 40 && idx < 80;
+
         if (isDark) {
-          if (isLead) { ctx.fillStyle = "#92b9d6"; ctx.shadowColor = "#92b9d6"; ctx.shadowBlur = 8; }
-          else if (isKeyword) { ctx.fillStyle = "rgba(242,147,43,0.6)"; ctx.shadowBlur = 0; }
-          else { ctx.fillStyle = "rgba(35,85,138,0.7)"; ctx.shadowBlur = 0; }
+          if (isLead)          { ctx.fillStyle = "#ffffff";  ctx.shadowColor = "#92b9d6"; ctx.shadowBlur = 10; }
+          else if (isKeyword)  { ctx.fillStyle = "#f2932b";  ctx.shadowBlur = 0; }
+          else                 { ctx.fillStyle = "#2a6aaa";  ctx.shadowBlur = 0; }
         } else {
-          // light mode — use navy and orange on light bg
-          if (isLead) { ctx.fillStyle = "rgba(26,74,138,0.55)"; ctx.shadowColor = "rgba(26,74,138,0.4)"; ctx.shadowBlur = 6; }
-          else if (isKeyword) { ctx.fillStyle = "rgba(201,106,10,0.45)"; ctx.shadowBlur = 0; }
-          else { ctx.fillStyle = "rgba(37,99,168,0.28)"; ctx.shadowBlur = 0; }
+          // light mode — vivid brand colors so they read clearly on #f0f4f8
+          if (isLead)          { ctx.fillStyle = "#002b51";  ctx.shadowColor = "#002b51"; ctx.shadowBlur = 8; }
+          else if (isKeyword)  { ctx.fillStyle = "#c96a0a";  ctx.shadowBlur = 0; }
+          else                 { ctx.fillStyle = "#1a4a7a";  ctx.shadowBlur = 0; }
         }
-        ctx.font = `${fontSize}px 'Courier New', monospace`; ctx.fillText(char, x, y); ctx.shadowBlur = 0;
+
+        ctx.font = `${fontSize}px 'Courier New', monospace`;
+        ctx.fillText(char, x, y);
+        ctx.shadowBlur = 0;
         if (y > canvas.height && Math.random() > 0.972) drops[i] = 0;
         drops[i] += 0.5;
       }
@@ -220,7 +227,18 @@ function MatrixRain({ opacity = 0.18 }) {
     draw();
     return () => { cancelAnimationFrame(animId); window.removeEventListener("resize", resize); };
   }, [isDark]);
-  return <canvas ref={canvasRef} style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", opacity: isDark ? opacity : opacity * 0.7, pointerEvents: "none", zIndex: 0 }} />;
+
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{
+        position: "fixed", top: 0, left: 0,
+        width: "100%", height: "100%",
+        opacity: isDark ? opacity : 0.55,
+        pointerEvents: "none", zIndex: 0,
+      }}
+    />
+  );
 }
 
 function AnimatedLetters({ text, style = {}, letterStyle = {}, animDelay = 0, animFrom = "bottom" }) {
