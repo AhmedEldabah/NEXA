@@ -187,17 +187,21 @@ function MatrixRain({ opacity = 0.18 }) {
     function resize() {
       canvas.width = window.innerWidth; canvas.height = window.innerHeight;
       const cols = Math.floor(canvas.width / fontSize);
-      drops = Array.from({ length: cols }, () => Math.random() * -50);
+      // skip every 5th column so ~20% fewer active streams in both modes
+      drops = Array.from({ length: cols }, (_, i) =>
+        i % 5 === 0 ? null : Math.random() * -50
+      );
     }
     resize(); window.addEventListener("resize", resize);
     const chars = "アイウエカキクタナハマ01010011<>{}()=+-*/0x9FA3B2C1def function class import return yield async await AI ML NLP CNN RNN 0x1A 0xFF π∑∫∂∇Ω∈";
 
     function draw() {
-      // fade trail — matches each bg
       ctx.fillStyle = isDark ? "rgba(2,12,24,0.055)" : "rgba(240,244,248,0.10)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       for (let i = 0; i < drops.length; i++) {
+        if (drops[i] === null) continue; // skipped column in light mode
+
         const idx = Math.floor(Math.random() * chars.length);
         const char = chars[idx];
         const x = i * fontSize;
@@ -206,14 +210,13 @@ function MatrixRain({ opacity = 0.18 }) {
         const isKeyword = idx > 40 && idx < 80;
 
         if (isDark) {
-          if (isLead)          { ctx.fillStyle = "#ffffff";  ctx.shadowColor = "#92b9d6"; ctx.shadowBlur = 10; }
-          else if (isKeyword)  { ctx.fillStyle = "#f2932b";  ctx.shadowBlur = 0; }
-          else                 { ctx.fillStyle = "#2a6aaa";  ctx.shadowBlur = 0; }
+          if (isLead)         { ctx.fillStyle = "#ffffff"; ctx.shadowColor = "#92b9d6"; ctx.shadowBlur = 10; }
+          else if (isKeyword) { ctx.fillStyle = "#f2932b"; ctx.shadowBlur = 0; }
+          else                { ctx.fillStyle = "#2a6aaa"; ctx.shadowBlur = 0; }
         } else {
-          // light mode — vivid brand colors so they read clearly on #f0f4f8
-          if (isLead)          { ctx.fillStyle = "#002b51";  ctx.shadowColor = "#002b51"; ctx.shadowBlur = 8; }
-          else if (isKeyword)  { ctx.fillStyle = "#c96a0a";  ctx.shadowBlur = 0; }
-          else                 { ctx.fillStyle = "#1a4a7a";  ctx.shadowBlur = 0; }
+          if (isLead)         { ctx.fillStyle = "#002b51"; ctx.shadowColor = "#002b51"; ctx.shadowBlur = 8; }
+          else if (isKeyword) { ctx.fillStyle = "#c96a0a"; ctx.shadowBlur = 0; }
+          else                { ctx.fillStyle = "#1a4a7a"; ctx.shadowBlur = 0; }
         }
 
         ctx.font = `${fontSize}px 'Courier New', monospace`;
@@ -234,7 +237,7 @@ function MatrixRain({ opacity = 0.18 }) {
       style={{
         position: "fixed", top: 0, left: 0,
         width: "100%", height: "100%",
-        opacity: isDark ? opacity : 0.55,
+        opacity: isDark ? opacity * 0.8 : 0.44,
         pointerEvents: "none", zIndex: 0,
       }}
     />
