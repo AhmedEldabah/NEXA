@@ -334,42 +334,43 @@ const StatCard = ({ icon, value, label, trend, accent }) => (
 function NexaLogo({ size = 48, showText = true, isMobile = false }) {
   const { isDark } = useTheme();
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-      {/* PNG logo image */}
-      <div style={{
-        width: size, height: size,
-        borderRadius: "50%",
-        overflow: "hidden",
-        flexShrink: 0,
-        boxShadow: isDark
-          ? "0 0 0 2.5px rgba(242,147,43,0.55), 0 0 20px rgba(242,147,43,0.28)"
-          : "0 0 0 2.5px rgba(224,123,26,0.65), 0 2px 14px rgba(0,0,0,0.22)",
-        border: "2.5px solid rgba(242,147,43,0.5)",
-      }}>
-        <img
-          src="/NEXA_LOGO.png"
-          alt="NEXA Logo"
-          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-          onError={(e) => {
-            e.target.style.display = "none";
-            e.target.parentElement.style.background = `linear-gradient(135deg, #f2932b, #e07b1a)`;
-            e.target.parentElement.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:${Math.round(size*0.32)}px;font-family:'Montserrat',sans-serif">NX</div>`;
-          }}
-        />
-      </div>
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      {/* PNG logo — no border, no frame, no background, blend away the black */}
+      <img
+        src="/NEXA_LOGO.png"
+        alt="NEXA Logo"
+        style={{
+          width: size, height: size,
+          objectFit: "contain",
+          display: "block",
+          flexShrink: 0,
+          /* multiply blends the black bg into the page bg so it disappears */
+          mixBlendMode: isDark ? "lighten" : "multiply",
+          filter: isDark
+            ? "drop-shadow(0 0 8px rgba(242,147,43,0.35))"
+            : "drop-shadow(0 1px 6px rgba(0,0,0,0.18))",
+        }}
+        onError={(e) => {
+          e.target.style.display = "none";
+          const fb = document.createElement("div");
+          fb.style.cssText = `width:${size}px;height:${size}px;border-radius:50%;background:linear-gradient(135deg,#f2932b,#e07b1a);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:${Math.round(size*0.32)}px;font-family:'Montserrat',sans-serif`;
+          fb.textContent = "NX";
+          e.target.parentNode.insertBefore(fb, e.target);
+        }}
+      />
       {showText && (
         <div>
           <div className="nexa-logo-text" style={{
-            fontSize: isMobile ? 20 : 24,
+            fontSize: isMobile ? 19 : 22,
             fontWeight: 700,
             color: isDark ? "#ffffff" : C.text,
             letterSpacing: 5,
             lineHeight: 1.1,
           }}>NEXA</div>
           <div style={{
-            fontSize: 9, color: C.orange, letterSpacing: 3,
+            fontSize: 8, color: C.orange, letterSpacing: 3,
             textTransform: "uppercase", fontFamily: "'Montserrat',sans-serif",
-            fontWeight: 600, marginTop: 2, opacity: 1,
+            fontWeight: 600, marginTop: 2,
           }}>AI · Robotics · Coding</div>
         </div>
       )}
@@ -408,8 +409,8 @@ function Landing({ goTo }) {
       <ScanLine />
 
       {/* ── NAV ── */}
-      <nav style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: isMobile ? "16px 20px" : "24px 60px", position: "relative", zIndex: 10, borderBottom: `1px solid ${C.border}`, backdropFilter: "blur(8px)", background: isDark ? "rgba(2,12,24,0.6)" : "rgba(240,244,248,0.85)", transition: "background .3s" }}>
-        <NexaLogo size={isMobile ? 46 : 58} isMobile={isMobile} />
+      <nav style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: isMobile ? "16px 20px" : "20px 60px", position: "relative", zIndex: 10, borderBottom: `1px solid ${C.border}`, backdropFilter: "blur(8px)", background: isDark ? "rgba(2,12,24,0.6)" : "rgba(240,244,248,0.85)", transition: "background .3s" }}>
+        <NexaLogo size={isMobile ? 40 : 48} isMobile={isMobile} />
         <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 12 }}>
           {/* Dark/Light toggle */}
           <ThemeSwitch />
@@ -748,7 +749,7 @@ function Shell({ sidebarItems, user: profile, onHome, pageTitle, topRight, child
     <>
       <div style={{ padding: collapsed ? "0 0 18px" : "0 16px 18px", borderBottom: `1px solid ${C.border}`, marginBottom: 12, display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : "flex-start", gap: 10 }}>
         {collapsed
-          ? <div style={{ width: 34, height: 34, borderRadius: 8, overflow: "hidden", border: `1px solid ${C.border}` }}><img src="/NEXA_LOGO.png" alt="NEXA" style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => { e.target.style.display="none"; e.target.parentElement.style.background=`linear-gradient(135deg,${C.orange},#e07b1a)`; e.target.parentElement.innerHTML=`<span style="color:#fff;font-weight:900;font-size:11px;font-family:'Montserrat',sans-serif">NX</span>`; }} /></div>
+          ? <img src="/NEXA_LOGO.png" alt="NEXA" style={{ width: 36, height: 36, objectFit: "contain", display: "block", mixBlendMode: isDark ? "lighten" : "multiply", filter: "drop-shadow(0 0 5px rgba(242,147,43,0.3))" }} onError={e => { e.target.style.display="none"; const fb=document.createElement("div"); fb.style.cssText=`width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,${C.orange},#e07b1a);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:11px;font-family:'Montserrat',sans-serif`; fb.textContent="NX"; e.target.parentNode.insertBefore(fb,e.target); }} />
           : <NexaLogo size={34} />
         }
       </div>
