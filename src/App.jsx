@@ -335,20 +335,18 @@ function NexaLogo({ size = 48, showText = true, isMobile = false }) {
   const { isDark } = useTheme();
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-      {/* PNG logo — no border, no frame, no background, blend away the black */}
       <img
         src="/NEXA_LOGO.png"
         alt="NEXA Logo"
         style={{
-          width: size, height: size,
+          width: size,
+          height: size,
           objectFit: "contain",
           display: "block",
           flexShrink: 0,
-          /* multiply blends the black bg into the page bg so it disappears */
-          mixBlendMode: isDark ? "lighten" : "multiply",
           filter: isDark
-            ? "drop-shadow(0 0 8px rgba(242,147,43,0.35))"
-            : "drop-shadow(0 1px 6px rgba(0,0,0,0.18))",
+            ? "drop-shadow(0 0 8px rgba(242,147,43,0.30))"
+            : "drop-shadow(0 1px 4px rgba(0,0,0,0.15))",
         }}
         onError={(e) => {
           e.target.style.display = "none";
@@ -749,7 +747,7 @@ function Shell({ sidebarItems, user: profile, onHome, pageTitle, topRight, child
     <>
       <div style={{ padding: collapsed ? "0 0 18px" : "0 16px 18px", borderBottom: `1px solid ${C.border}`, marginBottom: 12, display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : "flex-start", gap: 10 }}>
         {collapsed
-          ? <img src="/NEXA_LOGO.png" alt="NEXA" style={{ width: 36, height: 36, objectFit: "contain", display: "block", mixBlendMode: isDark ? "lighten" : "multiply", filter: "drop-shadow(0 0 5px rgba(242,147,43,0.3))" }} onError={e => { e.target.style.display="none"; const fb=document.createElement("div"); fb.style.cssText=`width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,${C.orange},#e07b1a);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:11px;font-family:'Montserrat',sans-serif`; fb.textContent="NX"; e.target.parentNode.insertBefore(fb,e.target); }} />
+          ? <img src="/NEXA_LOGO.png" alt="NEXA" style={{ width: 36, height: 36, objectFit: "contain", display: "block", filter: isDark ? "drop-shadow(0 0 5px rgba(242,147,43,0.3))" : "none" }} onError={e => { e.target.style.display="none"; const fb=document.createElement("div"); fb.style.cssText=`width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,${C.orange},#e07b1a);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:11px;font-family:'Montserrat',sans-serif`; fb.textContent="NX"; e.target.parentNode.insertBefore(fb,e.target); }} />
           : <NexaLogo size={34} />
         }
       </div>
