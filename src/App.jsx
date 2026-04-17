@@ -1175,7 +1175,7 @@ function StudentDash({ profile, onHome }) {
               {msgTo ? <MsgThread fromId={profile.id} toId={msgTo} myProfile={profile} /> : <div style={{ textAlign: "center", color: C.textMuted, fontSize: 13, padding: "60px 0" }}>Select a contact to start messaging</div>}
             </CardBody>
           </Card>
-        </div>
+        </MsgResponsiveLayout>
       </div>}
 
       {page === "notifications" && <NotificationsPanel profile={profile} />}
