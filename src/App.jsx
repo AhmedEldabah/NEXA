@@ -904,10 +904,32 @@ function LoginPage({ role, goTo, onAuthSuccess }) {
     if (!email || !pass) { setErr("Please enter your email and password."); return; }
     setLd(true); setErr("");
     const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
-    if (error) { setErr(error.message); setLd(false); return; }
-    const { data: profile } = await supabase.from("profiles").select("*").eq("id", data.user.id).single();
-    if (!profile?.role) { goTo("complete-profile"); }
-    else { onAuthSuccess(profile); }
+    if (error) {
+      // Common errors made friendlier
+      if (error.message.includes("Email not confirmed")) {
+        setErr("Please confirm your email address first — check your inbox for a confirmation link.");
+      } else if (error.message.includes("Invalid login credentials")) {
+        setErr("Incorrect email or password. Please try again.");
+      } else {
+        setErr(error.message);
+      }
+      setLd(false); return;
+    }
+    // Fetch profile — may not exist yet if signup didn't complete
+    const { data: profile, error: profErr } = await supabase.from("profiles").select("*").eq("id", data.user.id).single();
+    if (profErr || !profile) {
+      // Auth succeeded but no profile row — create a minimal one so they can proceed
+      const fallback = { id: data.user.id, email: data.user.email, role: null };
+      setErr("Your account exists but your profile is incomplete. Please sign up again to complete setup.");
+      await supabase.auth.signOut();
+      setLd(false); return;
+    }
+    if (!profile.role) {
+      setErr("Your profile has no role assigned. Please contact NEXA support or sign up again.");
+      await supabase.auth.signOut();
+      setLd(false); return;
+    }
+    onAuthSuccess(profile);
     setLd(false);
   }
 
@@ -974,23 +996,76 @@ function SignupPage({ role, goTo, onAuthSuccess }) {
     if (!f("full_name")) { setErr("Please enter your full name."); return; }
     if (role === "instructor" && !f("subject")) { setErr("Please select your subject."); return; }
     setLd(true);
-    const { error: signUpErr } = await supabase.auth.signUp({ email: f("email"), password: f("password"), options: { data: { full_name: f("full_name") } } });
-    if (signUpErr && !signUpErr.message.includes("already registered")) { setErr(signUpErr.message); setLd(false); return; }
-    const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({ email: f("email"), password: f("password") });
-    if (signInErr) { setErr(signInErr.message); setLd(false); return; }
-    const uid = signInData.user.id;
-    const payload = { id: uid, email: f("email"), full_name: f("full_name"), role, phone: f("phone") || null, avatar_url: avatarUrl || null, enrollment_date: new Date().toISOString().split("T")[0] };
-    if (role === "student") { payload.age = f("age") ? parseInt(f("age")) : null; payload.current_level = 1; payload.total_xp = 0; payload.skills = { logic: 0, coding: 0, hardware: 0, ai: 0 }; }
-    if (role === "parent") { payload.student_email = f("student_email")?.toLowerCase().trim() || null; }
-    if (role === "instructor") { payload.subject = f("subject"); }
-    const { error: profErr } = await supabase.from("profiles").upsert(payload);
-    if (profErr) { setErr(profErr.message); setLd(false); return; }
-    if (role === "parent" && f("student_email")) {
-      const { data: students } = await supabase.from("profiles").select("id").eq("email", f("student_email").toLowerCase().trim());
-      if (students?.length > 0) { await supabase.from("profiles").update({ parent_email: f("email") }).eq("id", students[0].id); }
+
+    // Step 1: Sign up
+    const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+      email: f("email"),
+      password: f("password"),
+      options: { data: { full_name: f("full_name") } }
+    });
+
+    if (signUpErr) {
+      if (signUpErr.message.includes("already registered") || signUpErr.message.includes("already been registered")) {
+        // User exists — try to sign them in directly
+      } else {
+        setErr(signUpErr.message); setLd(false); return;
+      }
     }
+
+    // Step 2: Try to sign in immediately
+    const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
+      email: f("email"),
+      password: f("password"),
+    });
+
+    if (signInErr) {
+      if (signInErr.message.includes("Email not confirmed")) {
+        // Email confirmation is enabled in Supabase — show clear instructions
+        setOk("✅ Account created! Check your email for a confirmation link, then come back to log in.");
+        setLd(false); return;
+      }
+      setErr(signInErr.message); setLd(false); return;
+    }
+
+    const uid = signInData.user.id;
+
+    // Step 3: Build and upsert profile
+    const payload = {
+      id: uid,
+      email: f("email"),
+      full_name: f("full_name"),
+      role,
+      phone: f("phone") || null,
+      avatar_url: avatarUrl || null,
+      enrollment_date: new Date().toISOString().split("T")[0],
+    };
+    if (role === "student") {
+      payload.age = f("age") ? parseInt(f("age")) : null;
+      payload.current_level = 1;
+      payload.total_xp = 0;
+      payload.skills = { logic: 0, coding: 0, hardware: 0, ai: 0 };
+    }
+    if (role === "parent") {
+      payload.student_email = f("student_email")?.toLowerCase().trim() || null;
+    }
+    if (role === "instructor") {
+      payload.subject = f("subject");
+    }
+
+    const { error: profErr } = await supabase.from("profiles").upsert(payload);
+    if (profErr) { setErr("Profile save failed: " + profErr.message); setLd(false); return; }
+
+    // Step 4: Link parent ↔ student
+    if (role === "parent" && f("student_email")) {
+      const { data: students } = await supabase.from("profiles")
+        .select("id").eq("email", f("student_email").toLowerCase().trim());
+      if (students?.length > 0) {
+        await supabase.from("profiles").update({ parent_email: f("email") }).eq("id", students[0].id);
+      }
+    }
+
     setOk(role === "instructor" ? "Application submitted! You'll be reviewed within 24 hours." : "Account created! Welcome to NEXA 🚀");
-    setTimeout(() => onAuthSuccess(payload), 1000);
+    setTimeout(() => onAuthSuccess(payload), 800);
     setLd(false);
   }
 
