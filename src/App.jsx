@@ -195,16 +195,28 @@ function MatrixRain({ opacity = 0.18 }) {
     resize(); window.addEventListener("resize", resize);
     const chars = "アイウエカキクタナハマ01010011<>{}()=+-*/0x9FA3B2C1def function class import return yield async await AI ML NLP CNN RNN 0x1A 0xFF π∑∫∂∇Ω∈";
 
+    let mouseX = 0;
+    let targetOffset = 0;
+    let currentOffset = 0;
+    
+    const handleMouse = (e) => {
+      mouseX = (e.clientX / window.innerWidth) - 0.5;
+      targetOffset = mouseX * 150; 
+    };
+    window.addEventListener("mousemove", handleMouse);
+
     function draw() {
       ctx.fillStyle = isDark ? "rgba(2,12,24,0.055)" : "rgba(240,244,248,0.10)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      currentOffset += (targetOffset - currentOffset) * 0.05;
 
       for (let i = 0; i < drops.length; i++) {
         if (drops[i] === null) continue; // skipped column in light mode
 
         const idx = Math.floor(Math.random() * chars.length);
         const char = chars[idx];
-        const x = i * fontSize;
+        const x = i * fontSize + currentOffset;
         const y = drops[i] * fontSize;
         const isLead    = Math.random() > 0.94;
         const isKeyword = idx > 40 && idx < 80;
@@ -223,12 +235,12 @@ function MatrixRain({ opacity = 0.18 }) {
         ctx.fillText(char, x, y);
         ctx.shadowBlur = 0;
         if (y > canvas.height && Math.random() > 0.972) drops[i] = 0;
-        drops[i] += 0.5;
+        drops[i] += 0.22; // Slower rain
       }
       animId = requestAnimationFrame(draw);
     }
     draw();
-    return () => { cancelAnimationFrame(animId); window.removeEventListener("resize", resize); };
+    return () => { cancelAnimationFrame(animId); window.removeEventListener("resize", resize); window.removeEventListener("mousemove", handleMouse); };
   }, [isDark]);
 
   return (
@@ -900,6 +912,15 @@ function LoginPage({ role, goTo, onAuthSuccess }) {
   const { isDark } = useTheme();
   const icons = { parent: "👨‍👩‍👧 Parent", student: "🎓 Student", instructor: "👨‍🏫 Instructor" };
 
+  async function forgotPassword() {
+    if (!email) { setErr("Please enter your email to reset password."); return; }
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + "/reset-password",
+    });
+    if (error) { setErr(error.message); return; }
+    toast("Password reset email sent! Please check your inbox.");
+  }
+
   async function doLogin() {
     if (!email || !pass) { setErr("Please enter your email and password."); return; }
     setLd(true); setErr("");
@@ -949,6 +970,9 @@ function LoginPage({ role, goTo, onAuthSuccess }) {
         {err && <div style={{ background: "rgba(239,68,68,.1)", border: "1px solid rgba(239,68,68,.25)", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "#f87171", marginBottom: 14 }}>{err}</div>}
         <FInput label="Email Address" type="email" placeholder="your@email.com" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" />
         <FInput label="Password" type="password" placeholder="••••••••" value={pass} onChange={e => setPass(e.target.value)} autoComplete="current-password" />
+        <div style={{ textAlign: "right", marginTop: -6, marginBottom: 10 }}>
+          <span style={{ fontSize: 11, color: C.textMid, cursor: "pointer", fontWeight: 600 }} onClick={forgotPassword}>Forgot Password?</span>
+        </div>
         <Btn variant="navy" block style={{ marginTop: 6 }} onClick={doLogin} loading={ld}>Sign In to Portal</Btn>
         <div style={{ textAlign: "center", marginTop: 14, fontSize: 11, color: C.textMuted }}>
           No account? <span style={{ color: C.orange, fontWeight: 700, cursor: "pointer" }} onClick={() => goTo("signup")}>Create one →</span>
@@ -1153,13 +1177,37 @@ function HomeCard({ profile, onGoToDash, onLogout }) {
     instructor: [{ icon: "📋", title: "Instructor Dashboard", sub: "Students, grades, sessions & notes" }, { icon: "📅", title: "Today's Sessions", sub: "Manage your classes" }, { icon: "💬", title: "Messages", sub: "Parent & student communications" }],
   };
   const { isDark } = useTheme();
+  const [profileAvatar, setProfileAvatar] = useState(profile.avatar_url);
+
+  async function handleAvatarUpdate(e) {
+    const file = e.target.files[0]; if (!file) return;
+    const ext = file.name.split(".").pop();
+    const path = `avatars/${profile.id}_${Date.now()}.${ext}`;
+    const { data, error } = await supabase.storage.from("avatars").upload(path, file, { upsert: true });
+    if (error) { toast("Avatar upload failed", "err"); return; }
+    const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(path);
+    await supabase.from("profiles").update({ avatar_url: publicUrl }).eq("id", profile.id);
+    setProfileAvatar(publicUrl);
+    profile.avatar_url = publicUrl; // Update in memory as well
+    toast("Photo updated!");
+  }
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden", transition: "background .3s" }}>
       <MatrixRain opacity={0.08} />
       <div style={{ position: "absolute", width: 500, height: 500, borderRadius: "50%", background: `radial-gradient(circle, rgba(242,147,43,${isDark ? ".08" : ".05"}) 0%, transparent 70%)`, top: -150, right: -100, pointerEvents: "none", zIndex: 1 }} />
       <div style={{ background: C.bgCard, borderRadius: 24, padding: "clamp(24px,5vw,44px) clamp(20px,6vw,48px)", maxWidth: 480, width: "94%", position: "relative", zIndex: 2, textAlign: "center", border: `1px solid ${C.border}`, boxShadow: isDark ? "0 20px 60px rgba(0,0,0,.6)" : "0 20px 60px rgba(0,0,0,.15)", transition: "background .3s" }}>
-        <Avatar ini={ini} bg={accent} size={80} radius={20} src={profile.avatar_url} style={{ margin: "0 auto 16px", border: `3px solid ${accent}40` }} />
+        
+        <div style={{ position: "relative", width: 80, height: 80, margin: "0 auto 16px" }}>
+          <Avatar ini={ini} bg={accent} size={80} radius={20} src={profileAvatar} style={{ border: `3px solid ${accent}40`, width: "100%", height: "100%" }} />
+          <label style={{ position: "absolute", bottom: -8, right: -8, background: C.bgElevated, border: `1.5px solid ${C.border}`, borderRadius: "50%", width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 14, boxShadow: "0 2px 10px rgba(0,0,0,.2)", transition: "all .2s" }}
+            onMouseEnter={e => e.currentTarget.style.transform = "scale(1.1)"}
+            onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}>
+            📷
+            <input type="file" accept="image/*" style={{ display: "none" }} onChange={handleAvatarUpdate} />
+          </label>
+        </div>
+
         <div style={{ marginBottom: 6 }}><Tag color="navy">{roleLabels[role]}</Tag></div>
         <div style={{ fontSize: 24, fontWeight: 800, color: C.text, marginBottom: 4 }}>{name}</div>
         <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 28, lineHeight: 1.7 }}>
@@ -1815,8 +1863,31 @@ export default function App() {
       return next;
     });
   }
-  // Keep C in sync on first render
   useEffect(() => { Object.assign(C, isDark ? DARK : LIGHT); }, [isDark]);
+
+  useEffect(() => {
+    const handleClick = (e) => {
+      // Ignore clicks on buttons/inputs to avoid interfering, though pointer-events: none helps
+      const drop = document.createElement("div");
+      drop.style.cssText = `
+        position: fixed; left: ${e.clientX}px; top: ${e.clientY}px;
+        width: 12px; height: 12px; background: ${isDark ? "#f2932b" : "#c96a0a"};
+        border-radius: 50%; pointer-events: none; z-index: 9999;
+        transform: translate(-50%, -50%);
+        box-shadow: 0 0 10px ${isDark ? "#f2932b" : "#c96a0a"};
+      `;
+      document.body.appendChild(drop);
+      drop.animate(
+        [
+          { transform: "translate(-50%, -50%) scale(0.5)", opacity: 1 },
+          { transform: "translate(-50%, -50%) scale(8)", opacity: 0 }
+        ],
+        { duration: 600, easing: "cubic-bezier(0.1, 0.8, 0.3, 1)" }
+      ).onfinish = () => drop.remove();
+    };
+    window.addEventListener("click", handleClick);
+    return () => window.removeEventListener("click", handleClick);
+  }, [isDark]);
 
   useEffect(() => {
     if (loading) return;
